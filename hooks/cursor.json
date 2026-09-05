@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node \"${CURSOR_PLUGIN_ROOT:-${PLUGIN_ROOT:-.}}/scripts/context.js\"",
+        "timeout": 10
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "node \"${CURSOR_PLUGIN_ROOT:-${PLUGIN_ROOT:-.}}/scripts/remember-claim.js\"",
+        "matcher": "announce_work",
+        "timeout": 10
+      }
+    ],
+    "stop": [
+      {
+        "command": "node \"${CURSOR_PLUGIN_ROOT:-${PLUGIN_ROOT:-.}}/scripts/heartbeat.js\"",
+        "timeout": 15
+      }
+    ]
+  }
+}

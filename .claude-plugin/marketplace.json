@@ -1,0 +1,26 @@
+{
+  "name": "in-parallel",
+  "owner": {
+    "name": "In Parallel",
+    "url": "https://www.in-parallel.ai"
+  },
+  "description": "The In Parallel agent plugin.",
+  "plugins": [
+    {
+      "name": "in-parallel",
+      "displayName": "In Parallel",
+      "source": "./",
+      "description": "Read what needs attention, capture findings back to the team, and announce work before you start it so two people never build the same thing twice.",
+      "version": "0.1.0",
+      "author": {
+        "name": "In Parallel Oy",
+        "url": "https://www.in-parallel.ai"
+      },
+      "homepage": "https://www.in-parallel.ai",
+      "repository": "https://github.com/in-parallel-oy/agent-plugin",
+      "license": "MIT",
+      "keywords": ["in-parallel", "coordination", "work-claims", "planning", "mcp"],
+      "category": "productivity"
+    }
+  ]
+}
