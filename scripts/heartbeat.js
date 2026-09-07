@@ -39,7 +39,7 @@ async function run(input) {
     const now = Date.now()
     for (const [key, claim] of Object.entries(claims)) {
       if (!runtime.own(claim, info) || claim.status !== 'working') continue
-      const capability = runtime.heartbeat(claim.heartbeat, claim.claim_id)
+      const capability = runtime.heartbeat(claim.heartbeat, claim.claim_id, info.endpoint)
       if (!capability || Date.parse(claim.next_attempt_at) > now) continue
       if (claim.last_beat_at && now - Date.parse(claim.last_beat_at) < capability.interval_seconds * 1000) continue
       // Reserve before IO so concurrent hooks coalesce and outages back off.

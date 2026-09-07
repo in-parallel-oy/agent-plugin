@@ -25,6 +25,18 @@ a path works exactly like the remote:
 or from a shell, `claude plugin marketplace add ~/Projects/agent-plugin`.
 Re-run `/plugin marketplace update in-parallel` after editing local files.
 
+Claude Code defaults to production. To use another environment, set its MCP URL
+before launching Claude:
+
+```sh
+IN_PARALLEL_MCP_URL=https://your-environment.example/mcp claude
+```
+
+The Claude MCP config and hooks expand the same `${IN_PARALLEL_MCP_URL:-...}`
+value. Keep the server name `in-parallel`; install one plugin and select the
+environment before starting the session. Restart the client after switching and
+authenticate to that environment. Claims are stored separately by endpoint.
+
 ### Codex
 
 ```
@@ -50,14 +62,35 @@ no Copilot hook adapter; use explicit lifecycle calls and the fallback lease.
 | Claude Code | Yes | Successful tool replies; prompt, tool, and stop events | Session start, resume/compact, prompt changes, subagent start |
 | Codex with plugin hooks | Yes | Successful tool replies; prompt, tool, and stop events | Session start, resume/compact, prompt changes, subagent start |
 | Cursor IDE | Yes | `afterMCPExecution`; prompt, tool, and stop events | New conversations and changed context after tools |
-| Cursor Cloud | Host-dependent | No automatic claim tracking: `afterMCPExecution` is unavailable | No `sessionStart`; do not assume IDE parity |
+| Cursor Cloud | Host-dependent | Not verified in this host | Do not assume IDE parity |
 | GitHub Copilot / other portable hosts | Host-dependent | No adapter supplied | Skills only; explicit lifecycle calls |
 
 These adapters follow the published [Claude hook contract](https://code.claude.com/docs/en/hooks),
 [Codex hook contract](https://developers.openai.com/codex/hooks/), and
-[Cursor hook contract](https://cursor.com/docs/hooks), checked 2026-09-05.
+[Cursor hook contract](https://cursor.com/docs/hooks), checked 2026-09-07.
 Older clients may lack these events. The [portable plugin specification](https://agent-plugins.org/specification)
 does not make client-specific hooks portable.
+
+The table describes adapter coverage, not an end-to-end certification of each
+host. Tests execute Cursor's actual manifest commands with a plugin directory
+containing spaces. Cursor 3.19.13's installed hook runner also expands
+`${CURSOR_PLUGIN_ROOT}` in plugin commands; IDE and Cloud event dispatch have
+not been tested end to end.
+
+## Environment configuration
+
+Claude uses `.mcp.json`, whose environment override follows the published
+[Claude MCP expansion contract](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcpjson).
+Codex, Cursor, and portable hosts use `mcp.json`, with a literal production URL.
+The [Agent Plugins 1.0 specification](https://agent-plugins.org/specification)
+forbids variable expansion in HTTP URLs and headers. The Claude override does
+not affect these other clients.
+
+For local dogfooding in Codex or Cursor, edit the literal URL in `mcp.json` in
+the checkout used by that client, then reload the plugin. Its hooks read that
+same file. HTTPS is required outside loopback development. Tests keep the
+portable URL and Claude's default aligned. A mismatched heartbeat capability
+is rejected with a diagnostic; the agent must reconcile through `list_work`.
 
 ## What happens during work
 
@@ -113,8 +146,9 @@ capability can only renew its single claim.
 ## Repository layout and tests
 
 Portable manifests/config: `plugin.json`, `mcp.json`. Client manifests live in
-`.claude-plugin`, `.codex-plugin`, `.cursor-plugin` and share `.mcp.json`, skills,
-and the Node scripts through `hooks/{claude,codex,cursor}.json`.
+`.claude-plugin`, `.codex-plugin`, `.cursor-plugin`. Claude selects `.mcp.json`;
+Codex and Cursor select `mcp.json`. They share skills and the Node scripts through
+`hooks/{claude,codex,cursor}.json`.
 `runtime.js` owns client identity and payload/capability validation; `store.js`
 owns locking and atomic persistence. The three entry points are `context.js`,
 `remember-claim.js`, and `heartbeat.js`.
@@ -128,7 +162,8 @@ sh scripts/test.sh
 Behavior tests run real hook processes in isolated temporary homes against a
 local HTTP stub. They cover session isolation, delayed-response races, concurrent
 writers, abandoned locks, outage backoff, context restoration, client payloads,
-and capability destination checks. They do not contact In Parallel or GitHub.
+environment switching, manifest commands, and capability destination checks.
+They do not contact In Parallel or GitHub.
 
 ## License
 

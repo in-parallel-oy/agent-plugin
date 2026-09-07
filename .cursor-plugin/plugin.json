@@ -1,6 +1,6 @@
 {
   "name": "in-parallel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Read what needs attention, capture findings, and make overlapping work visible in In Parallel.",
   "author": {
     "name": "In Parallel Oy",
@@ -17,6 +17,6 @@
     "mcp"
   ],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./mcp.json",
   "hooks": "./hooks/cursor.json"
 }

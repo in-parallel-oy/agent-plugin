@@ -8,9 +8,20 @@ function payload() {
   try { return JSON.parse(fs.readFileSync(0, 'utf8')) || {} } catch { return {} }
 }
 
-function endpoint() {
-  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.mcp.json'), 'utf8'))
-  return new URL(config.mcpServers['in-parallel'].url)
+function endpoint(client = process.env.IN_PARALLEL_CLIENT || 'claude') {
+  const file = client === 'claude' ? '.mcp.json' : 'mcp.json'
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'))
+  const configured = config.mcpServers['in-parallel'].url
+  const expanded = client === 'claude' ? configured.replace(
+    /\$\{(\w+)(?::-([^}]*))?\}/g,
+    (_match, name, fallback) => process.env[name] ?? fallback ?? '',
+  ) : configured
+  const url = new URL(expanded)
+  if (url.username || url.password || url.hash ||
+      (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
+    throw new Error('Invalid In Parallel MCP endpoint configuration')
+  }
+  return url
 }
 
 function session(input) {
@@ -21,7 +32,7 @@ function session(input) {
   if (typeof cwd !== 'string' || !cwd) return null
   const client = cursor ? 'cursor' : input.client || process.env.IN_PARALLEL_CLIENT || 'claude'
   const owner = `${client}:${id}:${input.agent_id || 'main'}`
-  const url = endpoint()
+  const url = endpoint(client)
   return {
     owner, cwd: path.resolve(cwd), endpoint: url.href,
     requestPrefix: crypto.createHash('sha256').update(`${url.href}:${owner}`).digest('hex').slice(0, 24),
@@ -51,10 +62,10 @@ function announceReply(input) {
     ['created', 'started', 'blocked', 'completed', 'released', 'cancelled'].includes(reply.outcome) ? reply : null
 }
 
-function heartbeat(raw, claimId) {
+function heartbeat(raw, claimId, configuredEndpoint) {
   if (!raw || typeof raw.token !== 'string' || !raw.token || typeof raw.url !== 'string') return null
   try {
-    const configured = endpoint()
+    const configured = new URL(configuredEndpoint)
     const url = new URL(raw.url)
     if (url.origin !== configured.origin || url.username || url.password || url.search || url.hash) return null
     if (url.pathname !== `/api/v1/work-claims/${encodeURIComponent(claimId)}/heartbeat`) return null

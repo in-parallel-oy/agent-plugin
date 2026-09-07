@@ -9,14 +9,16 @@ const { spawn } = require('node:child_process')
 
 async function harness(t, handle = (_req, res) => { res.writeHead(204); res.end() }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-hooks-'))
-  const plugin = path.join(root, 'plugin')
+  const plugin = path.join(root, 'plugin with spaces')
   fs.mkdirSync(plugin)
   fs.cpSync(path.join(__dirname), path.join(plugin, 'scripts'), { recursive: true })
   const server = http.createServer(handle)
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   const origin = `http://127.0.0.1:${server.address().port}`
   const endpoint = `${origin}/mcp`
-  fs.writeFileSync(path.join(plugin, '.mcp.json'), JSON.stringify({ mcpServers: { 'in-parallel': { url: endpoint } } }))
+  for (const file of ['.mcp.json', 'mcp.json']) {
+    fs.writeFileSync(path.join(plugin, file), JSON.stringify({ mcpServers: { 'in-parallel': { url: endpoint } } }))
+  }
   const preload = path.join(root, 'home.cjs')
   fs.writeFileSync(preload, `require('node:os').homedir = () => ${JSON.stringify(root)};`)
   const bin = path.join(root, 'bin')
@@ -24,16 +26,24 @@ async function harness(t, handle = (_req, res) => { res.writeHead(204); res.end(
   for (const name of ['git', 'gh']) fs.writeFileSync(path.join(bin, name), '#!/bin/sh\nexit 1\n', { mode: 0o755 })
   const stateDir = path.join(root, '.in-parallel')
   const file = path.join(stateDir, 'claims.json')
-  const run = (script, input, source) => new Promise((resolve, reject) => {
-    const args = ['--require', preload, ...(source ? ['-e', source] : [path.join(plugin, 'scripts', script)])]
-    const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: ['pipe', 'pipe', 'pipe'] })
+  const diagnostics = []
+  const launch = (command, args, input, env = {}, shell = false) => new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: root, shell,
+      env: { ...process.env, NODE_OPTIONS: `--require ${preload}`, IN_PARALLEL_CLIENT: 'claude', ...env, PATH: `${bin}:${process.env.PATH}` },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     let stdout = '', stderr = ''
     child.stdout.on('data', data => { stdout += data })
-    child.stderr.on('data', data => { stderr += data })
+    child.stderr.on('data', data => { stderr += data; diagnostics.push(String(data)) })
     child.on('error', reject)
-    child.on('exit', code => code === 0 ? resolve(stdout) : reject(Error(`${script}: ${code}: ${stderr}`)))
+    child.on('exit', code => code === 0 ? resolve(stdout) : reject(Error(`${command}: ${code}: ${stderr}`)))
     child.stdin.end(JSON.stringify(input ?? {}))
   })
+  const run = (script, input, source, env) => launch(process.execPath,
+    source ? ['-e', source] : [path.join(plugin, 'scripts', script)], input, env)
+  const runHook = (command, input) => launch(command, [], input,
+    { CURSOR_PLUGIN_ROOT: plugin, IN_PARALLEL_CLIENT: 'cursor' }, true)
   const read = () => fs.existsSync(file) ? JSON.parse(fs.readFileSync(file)).claims : {}
   const write = claims => { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(file, JSON.stringify({ version: 2, claims })) }
   const input = (session = 'A', event = 'PostToolUse') => ({ session_id: session, cwd: root, hook_event_name: event })
@@ -42,7 +52,7 @@ async function harness(t, handle = (_req, res) => { res.writeHead(204); res.end(
   const reply = (id, outcome = 'started') => ({ outcome, claim: { ...claim(id), state: outcome === 'started' ? 'working' : outcome, creator: { user_id: 'person' }, assignee: { user_id: 'person' } }, heartbeat: outcome === 'started' ? claim(id).heartbeat : null })
   const remember = (id, session = 'A', outcome = 'started') => run('remember-claim.js', { ...input(session), tool_name: 'mcp__in-parallel__announce_work', tool_response: { structuredContent: reply(id, outcome) } })
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); fs.rmSync(root, { recursive: true, force: true }) })
-  return { root, plugin, stateDir, origin, endpoint, run, input, key, claim, reply, remember, read, write }
+  return { root, plugin, stateDir, origin, endpoint, run, runHook, diagnostics, input, key, claim, reply, remember, read, write }
 }
 
 test('the first successful start immediately heartbeats only its own session', async t => {
@@ -109,6 +119,10 @@ test('foreign tools, foreign origins, and mismatched heartbeat paths cannot send
   assert.equal(requests, 0)
   assert.equal(h.read()[h.key('A')].heartbeat, null)
   assert.equal(h.read()[h.key('B')].heartbeat, null)
+  assert.equal(h.read()[h.key('A')].status, 'needs_reconciliation')
+  assert.equal(h.read()[h.key('B')].status, 'needs_reconciliation')
+  assert.match(h.diagnostics.join(''), /heartbeat capability rejected.*MCP endpoint matches the selected environment/)
+  assert.doesNotMatch(h.diagnostics.join(''), /token-A|token-B/)
 })
 
 test('Cursor records only its named MCP server and refreshes context through supported events', async t => {
@@ -236,4 +250,58 @@ test('a late heartbeat cannot renew the local schedule after work becomes blocke
   assert.equal(h.read()[h.key('A')].status, 'blocked')
   assert.equal(h.read()[h.key('A')].heartbeat, null)
   assert.equal(h.read()[h.key('A')].next_attempt_at, null)
+})
+
+test('Claude expands the endpoint while other clients keep their literal configuration', async t => {
+  const h = await harness(t)
+  const fallback = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.mcp.json'), 'utf8')).mcpServers['in-parallel'].url
+  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { 'in-parallel': { url: fallback } } }))
+  const runtimePath = JSON.stringify(path.join(h.plugin, 'scripts/runtime.js'))
+  const resolve = env => h.run('runtime', {}, `const r=require(${runtimePath}); console.log(JSON.stringify(['claude','codex','cursor'].map(c=>r.endpoint(c).href)))`, env)
+  const portable = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'mcp.json'), 'utf8')).mcpServers['in-parallel'].url
+  const defaults = JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: undefined }))
+  assert.equal(defaults[0], portable)
+  assert.deepEqual(defaults.slice(1), [h.endpoint, h.endpoint])
+  const configured = JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: 'https://example.dev/mcp' }))
+  assert.deepEqual(configured, ['https://example.dev/mcp', h.endpoint, h.endpoint])
+  for (const client of ['codex', 'cursor']) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `.${client}-plugin/plugin.json`), 'utf8'))
+    assert.equal(manifest.mcpServers, './mcp.json')
+  }
+})
+
+test('environment switching partitions ownership and sends capabilities only to that environment', async t => {
+  let prodRequests = 0, devRequests = 0
+  const prod = await harness(t, (_req, res) => { prodRequests++; res.writeHead(204); res.end() })
+  const dev = await harness(t, (_req, res) => { devRequests++; res.writeHead(204); res.end() })
+  const url = '${IN_PARALLEL_MCP_URL:-' + prod.endpoint + '}'
+  fs.writeFileSync(path.join(prod.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { 'in-parallel': { url } } }))
+  prod.write({ [prod.key('A')]: prod.claim('A') })
+  const env = { IN_PARALLEL_MCP_URL: dev.endpoint }
+  await prod.run('remember-claim.js', { ...prod.input(), tool_name: 'mcp__in-parallel__announce_work', tool_response: dev.reply('A') }, null, env)
+  assert.equal(devRequests, 1)
+  assert.equal(prodRequests, 0)
+  assert.equal(Object.keys(prod.read()).length, 2)
+  assert.ok(prod.read()[dev.key('A')].last_beat_at)
+  assert.equal(prod.read()[prod.key('A')].last_beat_at, undefined)
+  await prod.run('heartbeat.js', prod.input(), null, { IN_PARALLEL_MCP_URL: undefined })
+  assert.equal(prodRequests, 1)
+  assert.equal(devRequests, 1)
+  await prod.run('remember-claim.js', { ...prod.input(), tool_name: 'mcp__in-parallel__announce_work', tool_response: dev.reply('A', 'completed') }, null, env)
+  assert.equal(prod.read()[dev.key('A')], undefined)
+  assert.ok(prod.read()[prod.key('A')])
+})
+
+test('Cursor manifest commands run with a plugin root containing spaces', async t => {
+  const h = await harness(t)
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks/cursor.json'), 'utf8')).hooks
+  const input = { conversation_id: 'cursor-command', workspace_roots: [h.root], hook_event_name: 'sessionStart' }
+  const context = JSON.parse(await h.runHook(hooks.sessionStart[0].command, input))
+  assert.match(context.additional_context, /request_prefix=/)
+  await h.runHook(hooks.afterMCPExecution[0].command, {
+    ...input, hook_event_name: 'afterMCPExecution', tool_name: 'announce_work',
+    mcp_server_name: 'in-parallel', result_json: JSON.stringify(h.reply('C')),
+  })
+  assert.equal(h.read()[h.key('C')].owner, 'cursor:cursor-command:main')
+  assert.ok(h.read()[h.key('C')].last_beat_at)
 })

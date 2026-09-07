@@ -11,7 +11,7 @@
       "displayName": "In Parallel",
       "source": "./",
       "description": "Read what needs attention, capture findings, and make overlapping work visible in In Parallel.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "In Parallel Oy",
         "url": "https://www.in-parallel.ai"

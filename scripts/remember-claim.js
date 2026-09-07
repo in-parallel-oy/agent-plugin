@@ -23,7 +23,10 @@ async function main() {
     const previous = claims[key]
     // A retry may recover the same session's claim. Starting a known claim in
     // another session is an explicit transfer through authenticated MCP.
-    const capability = claim.state === 'working' ? runtime.heartbeat(reply.heartbeat, claim.claim_id) : null
+    const capability = claim.state === 'working' ? runtime.heartbeat(reply.heartbeat, claim.claim_id, info.endpoint) : null
+    if (reply.heartbeat && !capability && claim.state === 'working') {
+      console.error('In Parallel: heartbeat capability rejected. Check that the plugin MCP endpoint matches the selected environment.')
+    }
     const keepSchedule = claim.state === 'working' && previous?.status === 'working' && runtime.own(previous, info)
     claims[key] = {
       claim_id: claim.claim_id,
@@ -34,7 +37,8 @@ async function main() {
       reason: claim.reason || null,
       version: claim.version ?? null,
       started_at: claim.started_at || null,
-      status: ['working', 'created', 'blocked'].includes(claim.state) ? claim.state : 'needs_reconciliation',
+      status: claim.state === 'working' && reply.heartbeat && !capability ? 'needs_reconciliation' :
+        ['working', 'created', 'blocked'].includes(claim.state) ? claim.state : 'needs_reconciliation',
       heartbeat: capability,
       last_beat_at: keepSchedule ? previous.last_beat_at : null,
       next_attempt_at: keepSchedule ? previous.next_attempt_at : null,
