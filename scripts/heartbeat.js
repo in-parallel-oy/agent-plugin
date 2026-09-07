@@ -1,94 +1,68 @@
 #!/usr/bin/env node
 'use strict'
 
-// Stop hook.
-//
-// Beats the heartbeat of every remembered claim whose last beat is older than
-// the interval the server asked for. One POST per due claim, 3 s, no retries:
-// the next Stop is the retry. 204 keeps the claim, 401 and 409 mean the token
-// or the claim is gone and the entry is dropped, and anything else is left
-// alone so a transient failure cannot lose a live claim.
-//
-// It prints nothing and always exits 0.
-
 const http = require('node:http')
 const https = require('node:https')
-
 const store = require('./store')
+const runtime = require('./runtime')
 
-const TIMEOUT_MS = 3000
-const DEFAULT_INTERVAL_SECONDS = 900
-
-function due(claim, now) {
-  const heartbeat = claim && claim.heartbeat
-  if (!heartbeat || typeof heartbeat.url !== 'string' || typeof heartbeat.token !== 'string') return false
-  if (!/^https?:\/\//.test(heartbeat.url)) return false
-  const last = Date.parse(claim.last_beat_at)
-  if (!Number.isFinite(last)) return true
-  const interval = Number(heartbeat.interval_seconds)
-  const seconds = Number.isFinite(interval) && interval > 0 ? interval : DEFAULT_INTERVAL_SECONDS
-  return now - last >= seconds * 1000
-}
-
-// Resolves to the HTTP status, or null when the request never completed.
 function beat(heartbeat) {
-  return new Promise((resolve) => {
-    let url
-    try {
-      url = new URL(heartbeat.url)
-    } catch {
-      resolve(null)
-      return
+  return new Promise(resolve => {
+    let finished = false
+    const finish = status => {
+      if (finished) return
+      finished = true
+      clearTimeout(deadline)
+      resolve(status)
     }
-    const transport = url.protocol === 'https:' ? https : http
-    const request = transport.request(
-      url,
-      {
-        method: 'POST',
-        headers: {
-          // The only credential this plugin ever sends, and only to the URL
-          // the server returned with it.
-          authorization: `Bearer ${heartbeat.token}`,
-          'content-length': '0',
-          accept: 'application/json',
-          'user-agent': 'in-parallel-agent-plugin',
-        },
-        timeout: TIMEOUT_MS,
-      },
-      (response) => {
-        response.resume()
-        response.on('end', () => resolve(response.statusCode))
-      },
-    )
-    request.on('timeout', () => request.destroy())
-    request.on('error', () => resolve(null))
+    const url = new URL(heartbeat.url)
+    const request = (url.protocol === 'https:' ? https : http).request(url, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${heartbeat.token}`, 'content-length': '0' },
+    }, response => {
+      response.resume()
+      response.on('end', () => finish(response.statusCode))
+      response.on('error', () => finish(null))
+      response.on('aborted', () => finish(null))
+    })
+    const deadline = setTimeout(() => { request.destroy(); finish(null) }, 3000)
+    request.on('error', () => finish(null))
     request.end()
   })
 }
 
-async function main() {
-  const claims = store.read()
-  const now = Date.now()
-  const pending = Object.keys(claims).filter((id) => due(claims[id], now))
-  if (pending.length === 0) return
-
-  const results = await Promise.all(pending.map((id) => beat(claims[id].heartbeat)))
-
-  let changed = false
-  pending.forEach((id, index) => {
-    const status = results[index]
-    if (status === 204 || status === 200) {
-      claims[id].last_beat_at = new Date().toISOString()
-      changed = true
-    } else if (status === 401 || status === 409) {
-      delete claims[id]
-      changed = true
+async function run(input) {
+  const info = runtime.session(input)
+  if (!info) return
+  const due = store.update(claims => {
+    const attempts = []
+    const now = Date.now()
+    for (const [key, claim] of Object.entries(claims)) {
+      if (!runtime.own(claim, info) || claim.status !== 'working') continue
+      const capability = runtime.heartbeat(claim.heartbeat, claim.claim_id)
+      if (!capability || Date.parse(claim.next_attempt_at) > now) continue
+      if (claim.last_beat_at && now - Date.parse(claim.last_beat_at) < capability.interval_seconds * 1000) continue
+      // Reserve before IO so concurrent hooks coalesce and outages back off.
+      claim.next_attempt_at = new Date(now + capability.interval_seconds * 1000).toISOString()
+      attempts.push([key, { ...claim, heartbeat: capability }])
     }
+    return attempts
   })
-
-  if (changed) store.write(claims)
+  if (!due.length) return
+  const responses = await Promise.all(due.map(([, claim]) => beat(claim.heartbeat)))
+  store.update(claims => {
+    due.forEach(([key, sent], index) => {
+      const current = claims[key]
+      if (!runtime.own(current, info) || current.status !== 'working' || current.heartbeat?.token !== sent.heartbeat.token) return
+      const status = responses[index]
+      if (status === 204) current.last_beat_at = new Date().toISOString()
+      else if (status === 401 || status === 409) {
+        current.heartbeat = null
+        current.status = 'needs_reconciliation'
+      }
+    })
+  })
 }
 
-main()
-  .catch(() => {})
-  .finally(() => process.exit(0))
+if (require.main === module) run(runtime.payload()).catch(() => {}).finally(() => process.exit(0))
+module.exports = { run }

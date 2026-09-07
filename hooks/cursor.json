@@ -3,21 +3,36 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "node \"${CURSOR_PLUGIN_ROOT:-${PLUGIN_ROOT:-.}}/scripts/context.js\"",
+        "command": "node \"${CURSOR_PLUGIN_ROOT}/scripts/context.js\"",
+        "timeout": 10
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node \"${CURSOR_PLUGIN_ROOT}/scripts/heartbeat.js\"",
         "timeout": 10
       }
     ],
     "afterMCPExecution": [
       {
-        "command": "node \"${CURSOR_PLUGIN_ROOT:-${PLUGIN_ROOT:-.}}/scripts/remember-claim.js\"",
-        "matcher": "announce_work",
+        "command": "node \"${CURSOR_PLUGIN_ROOT}/scripts/remember-claim.js\"",
+        "timeout": 10
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node \"${CURSOR_PLUGIN_ROOT}/scripts/heartbeat.js\"",
+        "timeout": 10
+      },
+      {
+        "command": "node \"${CURSOR_PLUGIN_ROOT}/scripts/context.js\"",
         "timeout": 10
       }
     ],
     "stop": [
       {
-        "command": "node \"${CURSOR_PLUGIN_ROOT:-${PLUGIN_ROOT:-.}}/scripts/heartbeat.js\"",
-        "timeout": 15
+        "command": "node \"${CURSOR_PLUGIN_ROOT}/scripts/heartbeat.js\"",
+        "timeout": 10
       }
     ]
   }

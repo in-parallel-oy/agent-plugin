@@ -1,14 +1,8 @@
 # In Parallel agent plugin
 
-One plugin, four clients. It gives your coding agent access to
-[In Parallel](https://www.in-parallel.ai) over MCP, two skills that say how to
-use it, and three small hooks that keep work claims honest without you having
-to remember anything.
-
-The problem it solves is narrow and real: two people, or two agents, starting
-the same work an hour apart and finding out at merge time. Announcing work
-takes one tool call. This plugin makes that call the obvious thing to do, and
-then keeps the claim alive and cleans it up.
+Connect your coding agent to In Parallel, announce shared work, spot exact
+subject overlaps, and leave useful handoffs. Skills and MCP are portable;
+automatic context and heartbeat behavior depend on the client.
 
 ## Install
 
@@ -45,120 +39,96 @@ checkout of it) as a plugin source in Settings → Customize → Plugins.
 
 ### GitHub Copilot
 
-Copilot loads the portable half of the plugin — `skills/` and `mcp.json`, per
-[Agent Plugins 1.0](https://agent-plugins.org/specification). The skills and
-the MCP server work. **The hooks do not**: Copilot has no hook that can inject
-context into a session, so there is no session line and no automatic
-heartbeat. Claims still work; they expire on their own if nothing beats them.
+For hosts supporting [Agent Plugins 1.0](https://agent-plugins.org/specification),
+use the portable `plugin.json`, `skills/`, and `mcp.json`. This plugin supplies
+no Copilot hook adapter; use explicit lifecycle calls and the fallback lease.
 
-## What the hooks do
+## Client support
 
-Three scripts, no daemon, no background process, no state beyond one file.
+| Client | MCP + skills | Automatic tracking and renewal | Context recovery |
+| --- | --- | --- | --- |
+| Claude Code | Yes | Successful tool replies; prompt, tool, and stop events | Session start, resume/compact, prompt changes, subagent start |
+| Codex with plugin hooks | Yes | Successful tool replies; prompt, tool, and stop events | Session start, resume/compact, prompt changes, subagent start |
+| Cursor IDE | Yes | `afterMCPExecution`; prompt, tool, and stop events | New conversations and changed context after tools |
+| Cursor Cloud | Host-dependent | No automatic claim tracking: `afterMCPExecution` is unavailable | No `sessionStart`; do not assume IDE parity |
+| GitHub Copilot / other portable hosts | Host-dependent | No adapter supplied | Skills only; explicit lifecycle calls |
 
-| Hook | Script | What it does |
-| --- | --- | --- |
-| SessionStart, UserPromptSubmit | `scripts/context.js` | Emits **one line**: repo, branch, pull request URL if `gh` answers within 3 s, the work claims this machine still has open, and one sentence reminding the agent to announce work and to close what it listed. Once per session, again when the branch changes. |
-| PostToolUse / afterMCPExecution on `announce_work` | `scripts/remember-claim.js` | Stores the claim id, description, URI and heartbeat token the server just returned. Deletes the entry when the reply says completed, released or cancelled. |
-| Stop | `scripts/heartbeat.js` | POSTs the heartbeat for every stored claim whose last beat is older than the interval the server asked for. Silent, 3 s, no retries. |
+These adapters follow the published [Claude hook contract](https://code.claude.com/docs/en/hooks),
+[Codex hook contract](https://developers.openai.com/codex/hooks/), and
+[Cursor hook contract](https://cursor.com/docs/hooks), checked 2026-09-05.
+Older clients may lack these events. The [portable plugin specification](https://agent-plugins.org/specification)
+does not make client-specific hooks portable.
 
-And what they do **not** do:
+## What happens during work
 
-- They do not block, deny, or rewrite anything. `context.js` exits 0 on every
-  path, including no git, no `gh`, and unparseable input.
-- They do not call the In Parallel API. The only network call any hook makes is
-  the heartbeat POST, to the URL the server itself returned.
-- They do not read your code, your diff, or your prompts.
-- They do not carry credentials. Your MCP session authenticates you; the
-  plugin never sees that token. The one secret it stores is the claim-scoped
-  heartbeat token described below.
-- They do not announce work for you. Announcing is a decision, and the agent
-  makes it — the hook only makes sure the agent knows the facts and remembers
-  what it claimed.
+1. Context hooks provide repo/branch facts, an optional PR URL, a session request
+   prefix, and claims owned by the current client session and subagent. Other
+   sessions are mentioned only as a count; their work is never automatically renewed.
+2. The agent announces work using a stable issue or work-record URI and a fresh
+   request ID. Retrying the same request refers to the same episode. Opening a PR
+   does not change the subject. Exact matching can miss differently named work.
+3. The reply hook records the claim and immediately attempts a heartbeat. Later
+   prompt/tool/stop events attempt renewal when due. Attempts are reserved atomically,
+   so concurrent events coalesce and failures back off until the next interval.
+4. Block pauses work awaiting a dependency, decision, or input, with a required
+   note. It keeps its assignee and has no active lease. Start with the same claim
+   ID resumes it once the dependency is resolved.
+5. Complete/cancel records an outcome. Release requires a handoff note; pickup
+   creates one successor while retaining that note in history.
 
-## Privacy
+There is no daemon or background timer. A Stop event is an opportunity to report,
+not proof of continuous execution. Work starts with a 24-hour fallback lease;
+each successful heartbeat sets a two-hour lease. A quiet or unsupported client
+can expire even while work continues. Explicit outcomes remain the clearest signal.
 
-What leaves your machine, and only when the agent calls a tool or the Stop hook
-beats a claim:
+Heartbeat POSTs have an empty body, a three-second deadline, no redirects, and a
+claim-scoped token. The URL must match the configured MCP origin and exact claim
+heartbeat path. `204` records success; `401`/`409` retains the ID with
+`needs_reconciliation` and drops the capability. Other failures retain state and
+wait for the next due event. Reconcile through authenticated `list_work` before
+resuming uncertain or legacy work.
 
-- **To In Parallel, in `announce_work` calls the agent makes:** the description
-  and URI it chose — typically a repository URL, a branch tree URL or a pull
-  request URL — and the reason on complete, release or cancel. These are
-  visible to everyone in the workspace. Never put secrets in them.
-- **To In Parallel, from the Stop hook:** an empty POST with a claim-scoped
-  bearer token. No body, no metadata, no repository contents.
-- **Nowhere else.** The session line — repo, branch, pull request URL, open
-  claims — is printed into your own agent session. It is not uploaded.
+## Local state and privacy
 
-Local state lives in `~/.in-parallel/claims.json` (mode 0600, directory 0700):
-one entry per open claim with its id, description, URI, start time, heartbeat
-token and last beat. Session markers live beside it and are pruned after seven
-days. Delete the directory at any time; the next start rebuilds it.
+`~/.in-parallel/claims.json` is mode 0600 inside a mode 0700 directory. It holds
+claim IDs, workspace/person IDs, the owning client/session/subagent, checkout,
+MCP endpoint, subject, lifecycle state, heartbeat capability, and attempt times.
+All writers lock, reread, and atomically patch the latest store. Late heartbeat
+responses cannot resurrect a closed claim or overwrite another session's new work.
+Malformed stores are preserved for recovery. Old ownerless entries are never
+silently adopted. Session context markers are pruned after seven days.
 
-## Heartbeat and updates
+The local store is a cache; the server remains authoritative. Deleting it stops
+automatic renewal and loses local ownership context. Reconcile rather than
+blindly reannouncing work. Changing MCP accounts requires reconciling open claims
+before adopting them under the new account.
 
-A work claim expires 24 hours after it starts and cannot be renewed through the
-tools. That is deliberate: a claim nobody is executing should stop claiming.
-But an agent that is genuinely still working needs a way to say so without the
-model having to remember to say it — and a model-driven renewal is exactly the
-thing that stops happening under load.
+The agent's MCP writes expose the selected description, URI, and handoff note to
+the workspace. Heartbeats send only the claim-scoped bearer and an empty POST.
+The context hook reads local git metadata and optionally calls `gh pr list`,
+which can contact GitHub for the PR URL. It does not upload the context line or
+read source files. Hooks do not receive the MCP OAuth credential; their stored
+capability can only renew its single claim.
 
-So `announce_work` with `action: "start"` returns a heartbeat alongside the
-claim:
+## Repository layout and tests
 
-```json
-"heartbeat": {
-  "token": "<opaque, scoped to this claim>",
-  "url": "https://www.in-parallel.ai/...",
-  "interval_seconds": 300
-}
-```
+Portable manifests/config: `plugin.json`, `mcp.json`. Client manifests live in
+`.claude-plugin`, `.codex-plugin`, `.cursor-plugin` and share `.mcp.json`, skills,
+and the Node scripts through `hooks/{claude,codex,cursor}.json`.
+`runtime.js` owns client identity and payload/capability validation; `store.js`
+owns locking and atomic persistence. The three entry points are `context.js`,
+`remember-claim.js`, and `heartbeat.js`.
 
-The Stop hook POSTs that URL with `Authorization: Bearer <token>` and an empty
-body. `204` means the claim is still working; `401` means the token is no
-longer valid; `409` means the claim is no longer working — someone completed,
-released or cancelled it, or it expired. On `401` or `409` the local entry is
-deleted, so the next session's context line stops mentioning a claim that no
-longer exists. Anything else is left alone: a flaky network must not drop a
-live claim, and the next Stop is the retry.
-
-The token is scoped to one claim and does one thing. It cannot read a
-workspace, cannot list work, and cannot change a claim's state — the lifecycle
-actions all go through authenticated MCP as the person. That is why this
-protocol needs no general agent API: everything an agent does is
-request/response inside a session it already authenticated, and liveness is the
-single exception, handled by one credential that can only say "still here".
-
-## Repository layout
-
-```
-plugin.json                     Agent Plugins 1.0 manifest (portable: skills + MCP)
-mcp.json                        Agent Plugins MCP config (streamable-http)
-.mcp.json                       Claude Code / Codex / Cursor MCP config (http)
-.claude-plugin/plugin.json      Claude Code manifest
-.claude-plugin/marketplace.json Marketplace listing this repository as the plugin
-.codex-plugin/plugin.json       Codex manifest
-.cursor-plugin/plugin.json      Cursor manifest
-hooks/{claude,codex,cursor}.json  Per-client hook wiring, same three scripts
-scripts/context.js              Session facts + reminder
-scripts/remember-claim.js       Claim memory
-scripts/heartbeat.js            Heartbeat
-scripts/store.js                ~/.in-parallel/claims.json read/write
-scripts/test.sh                 sh scripts/test.sh
-skills/in-parallel/             Using In Parallel through MCP
-skills/in-parallel-work/        The work-claims protocol
-```
-
-Node 18+ and git; `gh` is optional and only used to look up a pull request URL.
-
-## Tests
+Node 18+ and git are required; `gh` is optional. No runtime dependencies.
 
 ```
 sh scripts/test.sh
 ```
 
-Runs each hook script with real hook JSON on stdin against a throwaway `HOME`,
-a throwaway git repository, a stub `gh` and a real HTTP server standing in for
-the heartbeat endpoint. No network, no side effects outside its temp directory.
+Behavior tests run real hook processes in isolated temporary homes against a
+local HTTP stub. They cover session isolation, delayed-response races, concurrent
+writers, abandoned locks, outage backoff, context restoration, client payloads,
+and capability destination checks. They do not contact In Parallel or GitHub.
 
 ## License
 

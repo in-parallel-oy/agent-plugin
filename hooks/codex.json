@@ -1,13 +1,27 @@
 {
-  "description": "In Parallel work coordination: session facts, claim memory, and heartbeat.",
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.}}/scripts/context.js\"",
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/context.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/context.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/heartbeat.js\"",
             "timeout": 10
           }
         ]
@@ -15,11 +29,20 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "announce_work",
+        "matcher": "mcp__in[-_]parallel__announce_work",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.}}/scripts/remember-claim.js\"",
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/remember-claim.js\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/heartbeat.js\"",
             "timeout": 10
           }
         ]
@@ -30,8 +53,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.}}/scripts/heartbeat.js\"",
-            "timeout": 15
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/heartbeat.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=codex node \"${PLUGIN_ROOT}/scripts/context.js\"",
+            "timeout": 10
           }
         ]
       }

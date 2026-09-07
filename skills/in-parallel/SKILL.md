@@ -27,9 +27,9 @@ already there. Teams re-decide things; duplicate records make that worse rather
 than visible. If a record already covers the subject, update it instead:
 `update_*` for observations, `edit_wiki_page` for a page you are amending.
 
-Confirm each write with the user before making it, show what you are about to
-create, and record only what is new — not a restatement of context you were
-handed.
+Use the user’s existing authorization for the requested workspace and action.
+When a write extends beyond that scope, prepare the exact content and ask once
+before publishing it. Record new findings rather than restating supplied context.
 
 ## Capture findings as prose
 

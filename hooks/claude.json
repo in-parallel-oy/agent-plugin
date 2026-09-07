@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/context.js\"",
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/context.js\"",
             "timeout": 10
           }
         ]
@@ -16,7 +16,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/context.js\"",
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/context.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/heartbeat.js\"",
             "timeout": 10
           }
         ]
@@ -24,11 +29,20 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__in-parallel__announce_work",
+        "matcher": "mcp__in[-_]parallel__announce_work",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/remember-claim.js\"",
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/remember-claim.js\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/heartbeat.js\"",
             "timeout": 10
           }
         ]
@@ -39,8 +53,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/heartbeat.js\"",
-            "timeout": 15
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/heartbeat.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "IN_PARALLEL_CLIENT=claude node \"${CLAUDE_PLUGIN_ROOT}/scripts/context.js\"",
+            "timeout": 10
           }
         ]
       }
