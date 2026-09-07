@@ -106,6 +106,21 @@ test('invalid or expired capability retains the claim for authenticated reconcil
   assert.match(await h.run('context.js', h.input('A', 'SessionStart')), /list_work\(mine: true\)/)
 })
 
+test('a rejected stored capability requests reconciliation without blocking other owned work', async t => {
+  const requests = []
+  const h = await harness(t, (req, res) => { requests.push(req.url); res.writeHead(204); res.end() })
+  const rejected = h.claim('A')
+  rejected.heartbeat.url = 'https://other.example/api/v1/work-claims/A/heartbeat'
+  rejected.next_attempt_at = new Date(Date.now() + 60_000).toISOString()
+  h.write({ [h.key('A')]: rejected, [h.key('B')]: h.claim('B') })
+  await h.run('heartbeat.js', h.input())
+  assert.deepEqual(requests, ['/api/v1/work-claims/B/heartbeat'])
+  assert.equal(h.read()[h.key('A')].heartbeat, null)
+  assert.equal(h.read()[h.key('A')].status, 'needs_reconciliation')
+  assert.ok(h.read()[h.key('B')].last_beat_at)
+  assert.match(await h.run('context.js', h.input('A', 'SessionStart')), /list_work\(mine: true\)/)
+})
+
 test('foreign tools, foreign origins, and mismatched heartbeat paths cannot send a token', async t => {
   let requests = 0
   const h = await harness(t, (_req, res) => { requests++; res.end() })
