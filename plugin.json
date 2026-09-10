@@ -1,0 +1,41 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "in-parallel",
+  "version": "0.1.0",
+  "description": "Bring your team's context into conversations with your AI assistant.",
+  "author": {
+    "name": "In Parallel Oy",
+    "url": "https://www.in-parallel.ai"
+  },
+  "homepage": "https://www.in-parallel.ai",
+  "repository": "https://github.com/in-parallel-oy/agent-plugin",
+  "license": "Apache-2.0",
+  "keywords": [
+    "in-parallel",
+    "team-context",
+    "collaboration",
+    "productivity"
+  ],
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/codex.json",
+      "interface": {
+        "displayName": "In Parallel",
+        "shortDescription": "Bring your team's context to your assistant",
+        "longDescription": "Bring your team's context into conversations with your AI assistant.",
+        "developerName": "In Parallel Oy",
+        "category": "Productivity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://www.in-parallel.ai",
+        "defaultPrompt": [
+          "What needs my attention this week?",
+          "Catch me up on my project.",
+          "Record this finding for my team."
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "in_parallel": {
+      "type": "http",
+      "url": "${IN_PARALLEL_MCP_URL:-https://www.in-parallel.ai/mcp}"
+    }
+  }
+}

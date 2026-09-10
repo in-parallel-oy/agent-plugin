@@ -1,0 +1,31 @@
+{
+  "name": "in-parallel",
+  "owner": {
+    "name": "In Parallel",
+    "url": "https://www.in-parallel.ai"
+  },
+  "description": "The In Parallel agent plugin.",
+  "plugins": [
+    {
+      "name": "in-parallel",
+      "displayName": "In Parallel",
+      "source": "./",
+      "description": "Bring your team's context into conversations with your AI assistant.",
+      "version": "0.1.0",
+      "author": {
+        "name": "In Parallel Oy",
+        "url": "https://www.in-parallel.ai"
+      },
+      "homepage": "https://www.in-parallel.ai",
+      "repository": "https://github.com/in-parallel-oy/agent-plugin",
+      "license": "Apache-2.0",
+      "keywords": [
+        "in-parallel",
+        "team-context",
+        "collaboration",
+        "productivity"
+      ],
+      "category": "productivity"
+    }
+  ]
+}
