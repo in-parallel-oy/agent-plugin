@@ -7,11 +7,31 @@ priorities, find relevant decisions, and share useful findings with your team.
 
 You'll need an In Parallel account with access to your team's workspace.
 
-1. Open your assistant's plugin browser and install **In Parallel** from your
-   team's plugin library. If it isn't listed, add [this repository](https://github.com/in-parallel-oy/agent-plugin)
-   as a plugin source, or ask your administrator to make it available.
-2. Sign in to In Parallel and choose the workspaces you want to connect.
-3. Start a new conversation with your assistant.
+### Claude Code, Codex, or Cursor
+
+Run the setup command. It asks which assistants to set up, then installs for
+your user:
+
+```sh
+npx -y github:in-parallel-oy/agent-plugin
+```
+
+Needs Node 20.12+. Claude Code and Codex also need their own CLI on your `PATH`.
+Cursor users should reload Cursor afterwards.
+
+Later on, the same command takes `doctor` to check the installation and
+`uninstall` to remove it. Add `--help` for everything else.
+
+### Claude Desktop or ChatGPT
+
+Open the app's plugin browser and install **In Parallel** from your team's
+plugin library. If it isn't listed, add `https://github.com/in-parallel-oy/agent-plugin`
+as a plugin source, or ask your administrator to make it available.
+
+### Then
+
+Sign in to In Parallel, choose the workspaces you want to connect, and start a
+new conversation with your assistant.
 
 ## Try it
 
