@@ -179,12 +179,30 @@ test('unmanaged directories and symlinks are never replaced', t => {
 })
 
 
+test('production installs skip experimental features; other endpoints add them', () => {
+  for (const agent of setup.AGENTS) {
+    const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
+    const stable = setup.bundle(agent, PRODUCTION)
+    assert.deepEqual(stable.receipt.experimental, [])
+    assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
+    assert.ok(!Object.keys(stable.files).some(name => /\/(hooks|scripts)\/|in-parallel-work/.test(name)))
+    for (const url of ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp']) {
+      const dev = setup.bundle(agent, url)
+      assert.deepEqual(dev.receipt.experimental, setup.EXPERIMENTAL)
+      const hooks = JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks
+      assert.ok(dev.files[`${prefix}${hooks.slice(2)}`])
+      assert.ok(dev.files[`${prefix}skills/in-parallel-work/SKILL.md`])
+      assert.ok(dev.files[`${prefix}scripts/context.js`])
+    }
+  }
+})
+
 test('doctor reports an observed cache lock and explains safe recovery without removing it', t => {
   const home = fixture(t)
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')
   const logs = []
   const options = { home, cwd: home, env: {}, log: message => logs.push(message) }
-  setup.install(agent, PRODUCTION, options)
+  setup.install(agent, 'https://www.in-parallel.dev/mcp', options)
   const lock = path.join(home, '.in-parallel', 'contributions.lock')
   fs.mkdirSync(lock, { recursive: true })
   const owner = path.join(lock, `${process.pid}-live`)

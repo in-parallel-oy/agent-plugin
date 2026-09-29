@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 'use strict'
 
-const fs = require('node:fs')
-const path = require('node:path')
 const setup = require('./setup-lib')
 
 async function main(args = process.argv.slice(2), {
@@ -45,7 +43,7 @@ async function main(args = process.argv.slice(2), {
       // Invalid installations are reported per agent below so other selections can proceed.
       try { return setup.managed(setup.target(agent, home), agent)?.endpoint || [] } catch { return [] }
     })
-    const production = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'mcp.json'))).mcpServers.in_parallel.url
+    const production = setup.PRODUCTION
     const defaultUrl = existing.length && new Set(existing).size === 1 ? existing[0] : production
     const environments = [
       { value: production, label: 'Production', hint: production },

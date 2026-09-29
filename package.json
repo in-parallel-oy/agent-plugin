@@ -13,7 +13,7 @@
   "files": [
     "scripts/*.js",
     "skills",
-    "hooks",
+    "experimental",
     ".claude-plugin",
     ".codex-plugin",
     ".cursor-plugin",

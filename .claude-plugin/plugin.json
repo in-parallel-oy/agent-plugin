@@ -19,6 +19,5 @@
     "productivity"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/claude.json",
   "mcpServers": "./.mcp.json"
 }

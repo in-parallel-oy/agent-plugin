@@ -17,7 +17,6 @@
   ],
   "skills": "./skills/",
   "mcpServers": "./mcp.json",
-  "hooks": "./hooks/codex.json",
   "interface": {
     "displayName": "In Parallel",
     "shortDescription": "Bring your team's context to your assistant",

@@ -246,7 +246,7 @@ test('Codex text-content replies retain native ownership and terminal receipts',
 
 test('Cursor manifest commands work with spaces and validate the named server and session', async t => {
   const h = await harness(t)
-  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks/cursor.json'))).hooks
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'experimental/work-claims/hooks/cursor.json'))).hooks
   const matcher = new RegExp(hooks.postToolUse[0].matcher)
   for (const tool of ['Shell', 'Write', 'Delete', 'Task', 'MCP:announce_work', 'MCP:create_pull_request']) assert.match(tool, matcher)
   for (const tool of ['Read', 'Grep', 'TabRead']) assert.doesNotMatch(tool, matcher)
@@ -284,7 +284,9 @@ test('client manifests agree on public identity and reference shipped entry poin
     assert.equal(manifest.name, portable.name)
     assert.equal(manifest.version, portable.version)
     assert.equal(manifest.description, portable.description)
-    assert.ok(fs.existsSync(path.join(root, manifest.hooks)))
+    // Store listings ship no hooks; setup adds them with experimental features.
+    assert.equal(manifest.hooks, undefined)
+    assert.ok(fs.existsSync(path.join(root, 'experimental/work-claims/hooks', `${client}.json`)))
     assert.ok(fs.existsSync(path.join(root, manifest.mcpServers)))
   }
 })
@@ -417,7 +419,7 @@ test('a delayed start receipt cannot restore an older workspace hint', async t =
 
 test('Claude plugin-only installations track the documented namespaced report and read tools', async t => {
   const h = await harness(t)
-  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks/claude.json')))
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'experimental/work-claims/hooks/claude.json')))
   const matcher = new RegExp(hooks.hooks.PostToolUse[0].matcher)
   for (const tool of ['announce_work', 'get_work']) {
     assert.match(`mcp__in_parallel__${tool}`, matcher)
@@ -426,7 +428,7 @@ test('Claude plugin-only installations track the documented namespaced report an
   }
   const runtime = require('./runtime')
   for (const client of ['claude', 'codex']) {
-    const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `hooks/${client}.json`)))
+    const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `experimental/work-claims/hooks/${client}.json`)))
     const matcher = new RegExp(config.hooks.PostToolUse[0].matcher)
     for (const tool of ['announce_work', 'get_work']) {
       for (const [prefix, supported] of [
@@ -538,7 +540,7 @@ test('link corrections refresh owned outcome context without adopting another se
 for (const client of ['claude', 'codex']) {
   test(`${client}: actual manifest commands select the adapter and record its own reply`, async t => {
     const h = await harness(t)
-    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', `${client}.json`)))
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'experimental/work-claims/hooks', `${client}.json`)))
     const contextCommand = manifest.hooks.SessionStart[0].hooks[0].command
     const rememberCommand = manifest.hooks.PostToolUse[0].hooks[0].command
     assert.ok(!contextCommand.startsWith('IN_PARALLEL_CLIENT='))
