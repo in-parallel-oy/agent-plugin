@@ -5,7 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const { spawnSync } = require('node:child_process')
-const { endpointURL, expandEndpoint } = require('./runtime')
+const { endpointURL } = require('./runtime')
 
 const AGENTS = [
   { id: 'claude', name: 'Claude Code', command: 'claude' },
@@ -32,6 +32,23 @@ function endpoint(value) {
   try { return endpointURL(value).href } catch {
     throw new Error('Use an HTTPS MCP URL without credentials, query parameters, or a fragment. HTTP is allowed for localhost.')
   }
+}
+
+// Resolve a URL from the user's own client MCP configuration the way that client
+// documents, so setup can compare it with the selected endpoint. Looks up only
+// the variables that configuration names. A set-but-empty Claude variable stays
+// empty: only an unset variable uses its fallback.
+function expandEndpoint(value, client, env) {
+  return value.replace(/\$\{([^}]+)\}/g, (_match, variable) => {
+    if (client === 'claude') {
+      const [key, fallback] = variable.split(/:-(.*)/s)
+      if (env[key] !== undefined) return env[key]
+      if (fallback !== undefined) return fallback
+    } else if (client === 'cursor' && variable.startsWith('env:') && env[variable.slice(4)] !== undefined) {
+      return env[variable.slice(4)]
+    }
+    throw new Error('Unresolved In Parallel endpoint variable')
+  })
 }
 
 function run(command, args, { capture = false } = {}) {

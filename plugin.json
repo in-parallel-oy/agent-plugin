@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "in-parallel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bring your team's context into conversations with your AI assistant.",
   "author": {
     "name": "In Parallel Oy",

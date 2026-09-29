@@ -7,6 +7,8 @@ const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const setup = require('./setup-lib')
+// The shipped default endpoint, read rather than repeated so fixtures follow the config.
+const PRODUCTION = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 
 function fixture(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-setup-test-'))
@@ -55,7 +57,7 @@ function host(agent, home) {
 }
 
 test('endpoint accepts production and loopback development without embedding secrets', () => {
-  for (const url of ['https://www.in-parallel.ai/mcp', 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp', 'http://[::1]:5000/mcp']) assert.equal(setup.endpoint(url), url)
+  for (const url of [PRODUCTION, 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp', 'http://[::1]:5000/mcp']) assert.equal(setup.endpoint(url), url)
   for (const url of ['http://some-server/mcp', 'https://user:secret@host/mcp', 'https://host/mcp?token=secret', 'https://host/mcp#token', 'file:///tmp/mcp']) assert.throws(() => setup.endpoint(url), /Use an HTTPS/)
 })
 
@@ -98,7 +100,7 @@ for (const agent of setup.AGENTS) {
   test(`${agent.name}: dry run makes no files or native mutations`, t => {
     const home = fixture(t)
     const native = host(agent, home)
-    setup.install(agent, 'https://www.in-parallel.ai/mcp', { home, cwd: home, env: {}, execute: native.execute, dryRun: true, log() {} })
+    setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, dryRun: true, log() {} })
     assert.equal(fs.existsSync(setup.target(agent, home)), false)
     assert.ok(native.calls.every(args => args.includes('list')))
   })
@@ -107,7 +109,7 @@ for (const agent of setup.AGENTS) {
     const home = fixture(t)
     const native = host(agent, home)
     const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
-    setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+    setup.install(agent, PRODUCTION, options)
     const root = setup.target(agent, home)
     const custom = path.join(root, 'custom.txt')
     fs.writeFileSync(custom, 'keep this')
@@ -125,7 +127,7 @@ test('source and environment changes produce new cache versions without changing
   fs.cpSync(setup.SOURCE, source, { recursive: true, filter: file => !['node_modules', '.git'].includes(path.basename(file)) })
   const agent = setup.AGENTS[1]
   const original = fs.readFileSync(path.join(source, 'mcp.json'), 'utf8')
-  const prod = setup.bundle(agent, 'https://www.in-parallel.ai/mcp', source)
+  const prod = setup.bundle(agent, PRODUCTION, source)
   const local = setup.bundle(agent, 'http://localhost:54104/mcp', source)
   assert.notEqual(prod.receipt.version, local.receipt.version)
   fs.appendFileSync(path.join(source, 'scripts/remember-claim.js'), '\n// Updated runtime\n')
@@ -138,11 +140,11 @@ test('foreign plugins and marketplace collisions stop before creating files', t 
   const agent = setup.AGENTS[1]
   const native = host(agent, home)
   native.plugins = [{ pluginId: 'in-parallel@personal', enabled: true }]
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', { home, cwd: home, env: {}, execute: native.execute }), setup.ReplacementRequired)
+  assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute }), setup.ReplacementRequired)
   assert.equal(fs.existsSync(setup.target(agent, home)), false)
   native.plugins = []
   native.marketplaces = [{ name: setup.MARKETPLACE, path: '/someone/else' }]
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', { home, cwd: home, env: {}, execute: native.execute }), /marketplace already exists/)
+  assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute }), /marketplace already exists/)
   assert.equal(fs.existsSync(setup.target(agent, home)), false)
 })
 
@@ -152,12 +154,12 @@ test('failed native installation can be retried and stale registration is not su
   const native = host(agent, home)
   const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
   native.failInstall = true
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', options), /Native installation failed/)
+  assert.throws(() => setup.install(agent, PRODUCTION, options), /Native installation failed/)
   native.failInstall = false
   native.stale = true
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', options), /expected enabled plugin version/)
+  assert.throws(() => setup.install(agent, PRODUCTION, options), /expected enabled plugin version/)
   native.stale = false
-  setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+  setup.install(agent, PRODUCTION, options)
   assert.equal(native.marketplaces.length, 1)
 })
 
@@ -167,12 +169,12 @@ test('unmanaged directories and symlinks are never replaced', t => {
   const root = setup.target(agent, home)
   fs.mkdirSync(root, { recursive: true })
   fs.writeFileSync(path.join(root, 'mine.txt'), 'keep')
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', { home, cwd: home, env: {} }), /not managed/)
+  assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {} }), /not managed/)
   fs.rmSync(root, { recursive: true })
   const other = path.join(home, 'other')
   fs.mkdirSync(other)
   fs.symlinkSync(other, root)
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', { home, cwd: home, env: {} }), /symlink/)
+  assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {} }), /symlink/)
   assert.equal(fs.existsSync(other), true)
 })
 
@@ -182,7 +184,7 @@ test('doctor reports an observed cache lock and explains safe recovery without r
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')
   const logs = []
   const options = { home, cwd: home, env: {}, log: message => logs.push(message) }
-  setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+  setup.install(agent, PRODUCTION, options)
   const lock = path.join(home, '.in-parallel', 'contributions.lock')
   fs.mkdirSync(lock, { recursive: true })
   const owner = path.join(lock, `${process.pid}-live`)
@@ -198,7 +200,7 @@ test('Cursor replacement stages outside plugin discovery and restores the prior 
   const home = fixture(t)
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')
   const options = { home, cwd: home, env: {}, log() {} }
-  setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+  setup.install(agent, PRODUCTION, options)
   const root = setup.target(agent, home)
   const previous = setup.managed(root, agent)
   const discovery = path.dirname(root)
@@ -220,7 +222,7 @@ test('Cursor replacement refuses cross-filesystem staging before moving the inst
   const home = fixture(t)
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')
   const options = { home, cwd: home, env: {}, log() {} }
-  setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+  setup.install(agent, PRODUCTION, options)
   const root = setup.target(agent, home)
   const previous = setup.managed(root, agent)
   const stat = fs.statSync
@@ -265,14 +267,14 @@ test('checkbox multiselect installs all selected agents and skips unselected age
   assert.equal(ui.texts[0].validate('http://localhost:54104/mcp'), undefined)
 })
 
-for (const url of ['https://www.in-parallel.ai/mcp', 'https://www.in-parallel.dev/mcp']) {
+for (const url of [PRODUCTION, 'https://www.in-parallel.dev/mcp']) {
   test(`environment selection installs ${url} without asking for a URL`, async t => {
     const { main } = require('./setup')
     const home = fixture(t)
     const agent = setup.AGENTS[2]
     const ui = prompts(['cursor'], undefined, true, url)
     assert.equal(await main([], { home, cwd: home, env: {}, interactive: true, prompts: ui }), 0)
-    assert.equal(ui.environments[0].initialValue, 'https://www.in-parallel.ai/mcp')
+    assert.equal(ui.environments[0].initialValue, PRODUCTION)
     assert.deepEqual(ui.environments[0].options.map(option => option.label), ['Production', 'Development', 'Custom'])
     assert.equal(ui.texts.length, 0)
     assert.equal(setup.managed(setup.target(agent, home), agent).endpoint, url)
@@ -291,7 +293,7 @@ test('accepting the default environment installs production', async t => {
   assert.equal(await main([], { home, cwd: home, env: {}, interactive: true, prompts: ui, operations: {
     install(agent, url) { urls.push(url) },
   } }), 0)
-  assert.deepEqual(urls, ['https://www.in-parallel.ai/mcp'])
+  assert.deepEqual(urls, [PRODUCTION])
   assert.equal(ui.texts.length, 0)
 })
 
@@ -309,7 +311,7 @@ test('rerunning setup preserves the selected hosted environment', async t => {
 })
 
 for (const [before, after] of [
-  ['https://www.in-parallel.ai/mcp', 'https://www.in-parallel.dev/mcp'],
+  [PRODUCTION, 'https://www.in-parallel.dev/mcp'],
   ['http://localhost:54104/mcp', 'https://www.in-parallel.dev/mcp'],
   ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp'],
   ['http://localhost:54104/mcp', 'http://localhost:54105/mcp'],
@@ -408,7 +410,7 @@ for (const agent of setup.AGENTS.filter(agent => agent.command)) {
     const home = fixture(t)
     const native = host(agent, home)
     const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
-    setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+    setup.install(agent, PRODUCTION, options)
     const root = setup.target(agent, home)
     const before = fs.readFileSync(path.join(root, setup.RECEIPT), 'utf8')
     native.marketplaces[0][agent.id === 'codex' ? 'root' : 'path'] = home
@@ -426,9 +428,9 @@ test('Claude project installations are not mistaken for an owned user installati
   const agent = setup.AGENTS[0]
   const native = host(agent, home)
   const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
-  setup.install(agent, 'https://www.in-parallel.ai/mcp', options)
+  setup.install(agent, PRODUCTION, options)
   native.plugins.push({ ...native.plugins[0], scope: 'project' })
-  assert.throws(() => setup.install(agent, 'https://www.in-parallel.ai/mcp', options), /--scope project/)
+  assert.throws(() => setup.install(agent, PRODUCTION, options), /--scope project/)
 })
 
 test('a modified installation cannot prevent other selected agents from installing', async t => {
@@ -436,7 +438,7 @@ test('a modified installation cannot prevent other selected agents from installi
   const home = fixture(t)
   const claude = setup.AGENTS[0]
   const native = host(claude, home)
-  setup.install(claude, 'https://www.in-parallel.ai/mcp', { home, cwd: home, env: {}, execute: native.execute, log() {} })
+  setup.install(claude, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} })
   fs.writeFileSync(path.join(setup.target(claude, home), 'custom.txt'), 'keep')
   const ui = prompts(['claude', 'cursor'])
   const status = await main([], { home, cwd: home, env: {}, interactive: true, prompts: ui, operations: {
@@ -466,7 +468,7 @@ test('doctor only reports observed activation for the installed endpoint and bun
     setup.doctor(agent, options)
     return logs.join('\n')
   }
-  assert.match(check({ other: { ...complete, endpoint: 'https://www.in-parallel.ai/mcp' } }), /activation pending/)
+  assert.match(check({ other: { ...complete, endpoint: PRODUCTION } }), /activation pending/)
   assert.match(check({ old: { ...complete, version: 'old' } }), /activation pending/)
   assert.match(check({ one: { ...complete, report_at: null }, two: { ...complete, session: 'two', context_at: null } }), /activation pending/)
   const verified = check({ one: complete })
@@ -624,7 +626,7 @@ test('Codex preserves the previous plugin when replacement MCP verification fail
   const old = { pluginId: 'in-parallel@personal', enabled: true, version: '0.0.0' }
   native.plugins = [old]
   const options = { home, cwd: home, env: {}, execute: native.execute, replace: [old.pluginId], log() {} }
-  const url = 'https://www.in-parallel.ai/mcp'
+  const url = PRODUCTION
   for (const connection of [
     null,
     { enabled: false, transport: { type: 'streamable_http', url } },
@@ -657,7 +659,7 @@ test('Codex refuses missing, disabled and shadowed MCP configuration without ove
   native.missingMcp = false
   for (const mcp of [
     { enabled: false, transport: { type: 'streamable_http', url } },
-    { enabled: true, transport: { type: 'streamable_http', url: 'https://www.in-parallel.ai/mcp' } },
+    { enabled: true, transport: { type: 'streamable_http', url: PRODUCTION } },
     { enabled: true, transport: { type: 'stdio', command: 'custom-server' } },
   ]) {
     native.mcp = mcp

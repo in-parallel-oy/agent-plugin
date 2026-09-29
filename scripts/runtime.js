@@ -8,28 +8,13 @@ function payload() {
   try { return JSON.parse(fs.readFileSync(0, 'utf8')) || {} } catch { return {} }
 }
 
+// Every shipped MCP configuration holds a literal URL: the repository default,
+// or the one setup and packaging write. Hooks read it as-is and never consult
+// the environment for it; a variable reference fails validation below.
 function endpoint(client = process.env.IN_PARALLEL_CLIENT || 'claude') {
   const file = client === 'claude' ? '.mcp.json' : 'mcp.json'
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'))
-  const configured = config.mcpServers.in_parallel.url
-  const expanded = client === 'claude' ? expandEndpoint(configured, client) : configured
-  return endpointURL(expanded)
-}
-
-// Match the clients' documented URL expansion. A set-but-empty Claude variable
-// stays empty: only an unset variable uses its fallback. Never silently switch
-// the hooks to production when the client's selected endpoint is invalid.
-function expandEndpoint(value, client, env = process.env) {
-  return value.replace(/\$\{([^}]+)\}/g, (_match, variable) => {
-    if (client === 'claude') {
-      const [key, fallback] = variable.split(/:-(.*)/s)
-      if (env[key] !== undefined) return env[key]
-      if (fallback !== undefined) return fallback
-    } else if (client === 'cursor' && variable.startsWith('env:') && env[variable.slice(4)] !== undefined) {
-      return env[variable.slice(4)]
-    }
-    throw new Error('Unresolved In Parallel endpoint variable')
-  })
+  return endpointURL(config.mcpServers.in_parallel.url)
 }
 
 function endpointURL(value) {
@@ -112,4 +97,4 @@ function own(claim, info) {
   return info && claim?.owner === info.owner && claim.endpoint === info.endpoint
 }
 
-module.exports = { payload, endpoint, endpointURL, expandEndpoint, matchesEndpoint, session, announceReply, readReply, linkReply, activation, own }
+module.exports = { payload, endpoint, endpointURL, matchesEndpoint, session, announceReply, readReply, linkReply, activation, own }

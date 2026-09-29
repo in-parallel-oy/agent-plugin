@@ -268,9 +268,9 @@ test('switching environments keeps the same remote id in separate local records'
   const h = await harness(t)
   await h.remember('A')
   const dev = 'http://localhost:43211/mcp'
-  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: '${IN_PARALLEL_MCP_URL:-' + h.endpoint + '}' } } }))
+  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: dev } } }))
   const reply = { ...h.reply('A'), mcp_endpoint: dev, session_id: h.prefix('A', 'claude', 'main', dev) }
-  await h.run('remember-claim.js', { ...h.input(), tool_name: 'mcp__in_parallel__announce_work', tool_response: reply }, null, { IN_PARALLEL_MCP_URL: dev })
+  await h.run('remember-claim.js', { ...h.input(), tool_name: 'mcp__in_parallel__announce_work', tool_response: reply })
   assert.equal(Object.keys(h.read()).length, 2)
   assert.equal(h.read()[`${dev}:${h.id('A')}`].endpoint, dev)
   assert.equal(h.read()[h.key('A')].endpoint, h.endpoint)
@@ -290,18 +290,19 @@ test('client manifests agree on public identity and reference shipped entry poin
 })
 
 
-test('Claude expands the endpoint while other clients keep their literal configuration', async t => {
+test('every client reads its literal endpoint and ignores environment overrides', async t => {
   const h = await harness(t)
-  const fallback = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.mcp.json'), 'utf8')).mcpServers.in_parallel.url
-  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: fallback } } }))
+  const shipped = file => JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).mcpServers.in_parallel.url
+  // Plugin directories expect a plain absolute HTTPS URL with no install-time expansion.
+  assert.equal(shipped('.mcp.json'), shipped('mcp.json'))
+  assert.doesNotMatch(shipped('.mcp.json'), /\$/)
+  assert.equal(new URL(shipped('.mcp.json')).protocol, 'https:')
+  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: shipped('.mcp.json') } } }))
   const runtimePath = JSON.stringify(path.join(h.plugin, 'scripts/runtime.js'))
   const resolve = env => h.run('runtime', {}, `const r=require(${runtimePath}); console.log(JSON.stringify(['claude','codex','cursor'].map(c=>r.endpoint(c).href)))`, env)
-  const portable = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
-  const defaults = JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: undefined }))
-  assert.equal(defaults[0], portable)
-  assert.deepEqual(defaults.slice(1), [h.endpoint, h.endpoint])
-  const configured = JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: 'https://example.dev/mcp' }))
-  assert.deepEqual(configured, ['https://example.dev/mcp', h.endpoint, h.endpoint])
+  const expected = [shipped('mcp.json'), h.endpoint, h.endpoint]
+  assert.deepEqual(JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: undefined })), expected)
+  assert.deepEqual(JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: 'https://wrong-environment.test/mcp' })), expected)
   for (const client of ['codex', 'cursor']) {
     const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `.${client}-plugin/plugin.json`), 'utf8'))
     assert.equal(manifest.mcpServers, './mcp.json')
@@ -311,11 +312,12 @@ test('Claude expands the endpoint while other clients keep their literal configu
 
 test('invalid endpoint configuration gives a non-secret diagnostic without blocking the session', async t => {
   const h = await harness(t)
-  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: '${IN_PARALLEL_MCP_URL:-https://www.in-parallel.ai/mcp}' } } }))
-  for (const value of ['', 'https://user:do-not-print@host/mcp', 'not-a-url-do-not-print']) {
-    assert.equal(await h.run('context.js', h.input('A', 'SessionStart'), null, { IN_PARALLEL_MCP_URL: value }), '')
+  const values = ['', 'https://user:do-not-print@host/mcp', 'not-a-url-do-not-print', '${IN_PARALLEL_MCP_URL:-https://do-not-print.test/mcp}']
+  for (const value of values) {
+    fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: value } } }))
+    assert.equal(await h.run('context.js', h.input('A', 'SessionStart'), null, { IN_PARALLEL_MCP_URL: 'https://do-not-print.test/mcp' }), '')
   }
-  assert.equal(h.diagnostics.length, 3)
+  assert.equal(h.diagnostics.length, values.length)
   assert.match(h.diagnostics.join(''), /could not prepare work journal context/)
   assert.doesNotMatch(h.diagnostics.join(''), /do-not-print/)
 })
