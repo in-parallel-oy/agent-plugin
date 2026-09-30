@@ -1,6 +1,6 @@
 {
   "name": "in-parallel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bring your team's context into conversations with your AI assistant.",
   "author": {
     "name": "In Parallel Oy",
@@ -16,6 +16,5 @@
     "productivity"
   ],
   "skills": "./skills/",
-  "mcpServers": "./mcp.json",
-  "hooks": "./hooks/cursor.json"
+  "mcpServers": "./mcp.json"
 }

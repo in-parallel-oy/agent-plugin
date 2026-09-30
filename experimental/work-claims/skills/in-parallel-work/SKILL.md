@@ -118,7 +118,7 @@ authorized work when scopes are clear; raise concrete conflicts with the user.
 ## Call safely
 
 - Use the authorized workspace; verify hints and resolve ambiguity. Reuse existing permission.
-- Before the first report or after switching environments, compare `list_work.mcp_endpoint` with the configured endpoint. Stop reporting if missing or different. Prefer Claude’s plugin-prefixed tools when duplicates exist.
+- Before the first report or after switching environments, compare `list_work.mcp_endpoint` with the configured endpoint. Stop reporting if missing or different. Prefer the plugin-prefixed tools when duplicates exist.
 - Use the hook’s `session_id`, or generate one UUID without hooks. Every subagent needs its own; never adopt another session’s work.
 - Use a fresh `request_id` per report. Updates require your `claim_id` and the latest integer `version` as `expected_version`. Retry exact arguments; accept the returned current state.
 - On `stale_claim` or an uncertain write, read `get_work` and reassess. Lost ownership cannot be recovered from a public read; use `list_work(mine: true)` for context and start independently.

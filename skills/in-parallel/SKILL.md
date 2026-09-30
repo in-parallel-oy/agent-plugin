@@ -6,7 +6,7 @@ description: Reads team context and records findings in In Parallel. Use for wor
 # Working with In Parallel
 
 In Parallel holds a team’s plans, meetings, decisions and shared knowledge in
-workspaces. Use the `in-parallel-work` skill to report distinct tasks and progress.
+workspaces. When the `in-parallel-work` skill is installed, use it to report distinct tasks and progress.
 
 ## Find context
 
@@ -22,7 +22,7 @@ extends beyond it, show the proposed content and ask once before publishing.
 
 `capture_to_workspace` accepts ordinary prose: what you found, where and why it
 matters. Let the server choose the record kind. Capture new findings, constraints,
-decisions and risks; use the work journal for progress updates.
+decisions and risks; progress updates belong in the work journal, not in captures.
 
 Offer to save team-facing summaries, specifications and write-ups in the workspace
 wiki. Respect a destination the user already requested.

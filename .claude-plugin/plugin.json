@@ -2,13 +2,14 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "in-parallel",
   "displayName": "In Parallel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bring your team's context into conversations with your AI assistant.",
   "author": {
     "name": "In Parallel Oy",
     "url": "https://www.in-parallel.ai"
   },
   "homepage": "https://www.in-parallel.ai",
+  "privacyPolicyUrl": "https://in-parallel.com/privacy-policy/",
   "repository": "https://github.com/in-parallel-oy/agent-plugin",
   "license": "Apache-2.0",
   "keywords": [
@@ -18,6 +19,5 @@
     "productivity"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/claude.json",
   "mcpServers": "./.mcp.json"
 }

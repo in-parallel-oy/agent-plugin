@@ -246,7 +246,7 @@ test('Codex text-content replies retain native ownership and terminal receipts',
 
 test('Cursor manifest commands work with spaces and validate the named server and session', async t => {
   const h = await harness(t)
-  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks/cursor.json'))).hooks
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'experimental/work-claims/hooks/cursor.json'))).hooks
   const matcher = new RegExp(hooks.postToolUse[0].matcher)
   for (const tool of ['Shell', 'Write', 'Delete', 'Task', 'MCP:announce_work', 'MCP:create_pull_request']) assert.match(tool, matcher)
   for (const tool of ['Read', 'Grep', 'TabRead']) assert.doesNotMatch(tool, matcher)
@@ -268,9 +268,9 @@ test('switching environments keeps the same remote id in separate local records'
   const h = await harness(t)
   await h.remember('A')
   const dev = 'http://localhost:43211/mcp'
-  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: '${IN_PARALLEL_MCP_URL:-' + h.endpoint + '}' } } }))
+  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: dev } } }))
   const reply = { ...h.reply('A'), mcp_endpoint: dev, session_id: h.prefix('A', 'claude', 'main', dev) }
-  await h.run('remember-claim.js', { ...h.input(), tool_name: 'mcp__in_parallel__announce_work', tool_response: reply }, null, { IN_PARALLEL_MCP_URL: dev })
+  await h.run('remember-claim.js', { ...h.input(), tool_name: 'mcp__in_parallel__announce_work', tool_response: reply })
   assert.equal(Object.keys(h.read()).length, 2)
   assert.equal(h.read()[`${dev}:${h.id('A')}`].endpoint, dev)
   assert.equal(h.read()[h.key('A')].endpoint, h.endpoint)
@@ -284,24 +284,27 @@ test('client manifests agree on public identity and reference shipped entry poin
     assert.equal(manifest.name, portable.name)
     assert.equal(manifest.version, portable.version)
     assert.equal(manifest.description, portable.description)
-    assert.ok(fs.existsSync(path.join(root, manifest.hooks)))
+    // Store listings ship no hooks; setup adds them with experimental features.
+    assert.equal(manifest.hooks, undefined)
+    assert.ok(fs.existsSync(path.join(root, 'experimental/work-claims/hooks', `${client}.json`)))
     assert.ok(fs.existsSync(path.join(root, manifest.mcpServers)))
   }
 })
 
 
-test('Claude expands the endpoint while other clients keep their literal configuration', async t => {
+test('every client reads its literal endpoint and ignores environment overrides', async t => {
   const h = await harness(t)
-  const fallback = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.mcp.json'), 'utf8')).mcpServers.in_parallel.url
-  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: fallback } } }))
+  const shipped = file => JSON.parse(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).mcpServers.in_parallel.url
+  // Plugin directories expect a plain absolute HTTPS URL with no install-time expansion.
+  assert.equal(shipped('.mcp.json'), shipped('mcp.json'))
+  assert.doesNotMatch(shipped('.mcp.json'), /\$/)
+  assert.equal(new URL(shipped('.mcp.json')).protocol, 'https:')
+  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: shipped('.mcp.json') } } }))
   const runtimePath = JSON.stringify(path.join(h.plugin, 'scripts/runtime.js'))
   const resolve = env => h.run('runtime', {}, `const r=require(${runtimePath}); console.log(JSON.stringify(['claude','codex','cursor'].map(c=>r.endpoint(c).href)))`, env)
-  const portable = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
-  const defaults = JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: undefined }))
-  assert.equal(defaults[0], portable)
-  assert.deepEqual(defaults.slice(1), [h.endpoint, h.endpoint])
-  const configured = JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: 'https://example.dev/mcp' }))
-  assert.deepEqual(configured, ['https://example.dev/mcp', h.endpoint, h.endpoint])
+  const expected = [shipped('mcp.json'), h.endpoint, h.endpoint]
+  assert.deepEqual(JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: undefined })), expected)
+  assert.deepEqual(JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: 'https://wrong-environment.test/mcp' })), expected)
   for (const client of ['codex', 'cursor']) {
     const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `.${client}-plugin/plugin.json`), 'utf8'))
     assert.equal(manifest.mcpServers, './mcp.json')
@@ -311,11 +314,12 @@ test('Claude expands the endpoint while other clients keep their literal configu
 
 test('invalid endpoint configuration gives a non-secret diagnostic without blocking the session', async t => {
   const h = await harness(t)
-  fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: '${IN_PARALLEL_MCP_URL:-https://www.in-parallel.ai/mcp}' } } }))
-  for (const value of ['', 'https://user:do-not-print@host/mcp', 'not-a-url-do-not-print']) {
-    assert.equal(await h.run('context.js', h.input('A', 'SessionStart'), null, { IN_PARALLEL_MCP_URL: value }), '')
+  const values = ['', 'https://user:do-not-print@host/mcp', 'not-a-url-do-not-print', '${IN_PARALLEL_MCP_URL:-https://do-not-print.test/mcp}']
+  for (const value of values) {
+    fs.writeFileSync(path.join(h.plugin, '.mcp.json'), JSON.stringify({ mcpServers: { in_parallel: { url: value } } }))
+    assert.equal(await h.run('context.js', h.input('A', 'SessionStart'), null, { IN_PARALLEL_MCP_URL: 'https://do-not-print.test/mcp' }), '')
   }
-  assert.equal(h.diagnostics.length, 3)
+  assert.equal(h.diagnostics.length, values.length)
   assert.match(h.diagnostics.join(''), /could not prepare work journal context/)
   assert.doesNotMatch(h.diagnostics.join(''), /do-not-print/)
 })
@@ -415,7 +419,7 @@ test('a delayed start receipt cannot restore an older workspace hint', async t =
 
 test('Claude plugin-only installations track the documented namespaced report and read tools', async t => {
   const h = await harness(t)
-  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks/claude.json')))
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'experimental/work-claims/hooks/claude.json')))
   const matcher = new RegExp(hooks.hooks.PostToolUse[0].matcher)
   for (const tool of ['announce_work', 'get_work']) {
     assert.match(`mcp__in_parallel__${tool}`, matcher)
@@ -424,7 +428,7 @@ test('Claude plugin-only installations track the documented namespaced report an
   }
   const runtime = require('./runtime')
   for (const client of ['claude', 'codex']) {
-    const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `hooks/${client}.json`)))
+    const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', `experimental/work-claims/hooks/${client}.json`)))
     const matcher = new RegExp(config.hooks.PostToolUse[0].matcher)
     for (const tool of ['announce_work', 'get_work']) {
       for (const [prefix, supported] of [
@@ -536,7 +540,7 @@ test('link corrections refresh owned outcome context without adopting another se
 for (const client of ['claude', 'codex']) {
   test(`${client}: actual manifest commands select the adapter and record its own reply`, async t => {
     const h = await harness(t)
-    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', `${client}.json`)))
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'experimental/work-claims/hooks', `${client}.json`)))
     const contextCommand = manifest.hooks.SessionStart[0].hooks[0].command
     const rememberCommand = manifest.hooks.PostToolUse[0].hooks[0].command
     assert.ok(!contextCommand.startsWith('IN_PARALLEL_CLIENT='))

@@ -25,6 +25,16 @@ for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
   })
 }
 
+for (const client of ['claude', 'codex']) {
+  test(`${client}: production export ships only the stable skill and MCP endpoint`, () => {
+    const files = packageFiles(client)
+    const manifest = JSON.parse(files[`.${client}-plugin/plugin.json`])
+    assert.equal(manifest.hooks, undefined)
+    assert.ok(files['skills/in-parallel/SKILL.md'])
+    assert.ok(!Object.keys(files).some(name => /^(hooks|scripts)\/|in-parallel-work/.test(name)))
+  })
+}
+
 test('ChatGPT web packages only skills and an existing app reference', () => {
   assert.throws(() => packageFiles('chatgpt-web'), /existing registered/)
   assert.throws(() => packageFiles('chatgpt-web', { appId: 'plugin_123' }), /existing registered/)
@@ -35,7 +45,8 @@ test('ChatGPT web packages only skills and an existing app reference', () => {
     assert.equal(manifest.apps, './.app.json')
     assert.equal(manifest.hooks, undefined)
     assert.equal(manifest.mcpServers, undefined)
-    assert.ok(files['skills/in-parallel-work/SKILL.md'])
+    assert.ok(files['skills/in-parallel/SKILL.md'])
+    assert.equal(files['skills/in-parallel-work/SKILL.md'], undefined)
     assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
     assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
     assert.ok(!Object.keys(files).some(name => /mcp|^hooks\/|^scripts\//.test(name)))
@@ -79,7 +90,8 @@ test('creates an uploadable ZIP without client CLIs and refuses to overwrite an 
 test('portable and native OpenAI manifests agree on hooks and presentation', () => {
   const portable = JSON.parse(fs.readFileSync(path.join(source, 'plugin.json')))
   const native = JSON.parse(fs.readFileSync(path.join(source, '.codex-plugin/plugin.json')))
-  assert.deepEqual(portable.extensions['com.openai'], { hooks: native.hooks, interface: native.interface })
+  assert.equal(native.hooks, undefined)
+  assert.deepEqual(portable.extensions['com.openai'], { interface: native.interface })
   const marketplace = JSON.parse(fs.readFileSync(path.join(source, '.agents/plugins/marketplace.json')))
   assert.equal(marketplace.plugins[0].source.path, './')
   for (const name of ['package.json', '.claude-plugin/plugin.json', '.cursor-plugin/plugin.json']) {
