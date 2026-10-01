@@ -122,6 +122,8 @@ function bundle(agent, url, source = SOURCE) {
     for (const name of HOOK_SCRIPTS) files[`${prefix}scripts/${name}`] = fs.readFileSync(path.join(source, 'scripts', name))
   }
   for (const name of ['LICENSE', 'NOTICE']) files[`${prefix}${name}`] = fs.readFileSync(path.join(source, name))
+  // The Codex manifest's interface icons point at ./assets/logo.png.
+  if (agent.id === 'codex') files[`${prefix}assets/logo.png`] = fs.readFileSync(path.join(source, 'assets', 'logo.png'))
   // Use the same literal endpoint for MCP and hooks, including Claude. Never alter the source checkout.
   for (const name of ['.mcp.json', 'mcp.json']) {
     const config = JSON.parse(fs.readFileSync(path.join(source, name), 'utf8'))

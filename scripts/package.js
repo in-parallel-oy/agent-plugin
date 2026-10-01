@@ -3,7 +3,6 @@
 
 const fs = require('node:fs')
 const path = require('node:path')
-const crypto = require('node:crypto')
 const { parseArgs } = require('node:util')
 const { zipSync } = require('fflate')
 const setup = require('./setup-lib')
@@ -40,16 +39,13 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
     delete manifest.hooks
     delete manifest.mcpServers
-    manifest.apps = './.app.json'
-    // Cloud bundles carry no local MCP or hook configuration: either would
-    // change the supported install surface or depend on a local runtime.
+    delete manifest.apps
+    // OpenAI rejects .app.json and any declared MCP server for a plugin that
+    // was created through its legacy form; the connection is managed in the
+    // OpenAI dashboard. The manifest name must match that existing plugin:
+    // `app-<id without asdk_app_>`. Other ID formats fall back to the ID itself.
+    manifest.name = appId.startsWith('asdk_app_') ? `app-${appId.slice('asdk_app_'.length)}` : appId
     manifest.version = JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
-    files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
-    files['.app.json'] = Buffer.from(JSON.stringify({ apps: { in_parallel: { id: appId, required: true } } }, null, 2) + '\n')
-    const hash = crypto.createHash('sha256').update(JSON.stringify(
-      Object.entries(files).sort(([a], [b]) => a.localeCompare(b)).map(([name, content]) => [name, content.toString()]),
-    )).digest('hex').slice(0, 12)
-    manifest.version += `+app.${hash}`
     files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
   }
   return files
@@ -61,7 +57,7 @@ function main(args = process.argv.slice(2)) {
     'app-id': { type: 'string' }, help: { type: 'boolean', short: 'h' },
   } })
   if (values.help) {
-    console.log('Build an In Parallel plugin ZIP without installing any client.\n\nnode scripts/package.js --client <claude|codex|chatgpt-desktop|chatgpt-web> [--output file.zip] [--url https://host/mcp]\n\nChatGPT web additionally requires --app-id for an existing registered app.\nArchives contain plugin files only. Existing output files are never overwritten.')
+    console.log('Build an In Parallel plugin ZIP without installing any client.\n\nnode scripts/package.js --client <claude|codex|chatgpt-desktop|chatgpt-web> [--output file.zip] [--url https://host/mcp]\n\nChatGPT web additionally requires --app-id for an existing registered app. The archive declares no MCP server and no .app.json (OpenAI manages the connection); its manifest name is app-<id without asdk_app_> for asdk_app_ IDs.\nArchives contain plugin files only. Existing output files are never overwritten.')
     return
   }
   const files = packageFiles(values.client, { url: values.url, appId: values['app-id'] })
