@@ -19,7 +19,7 @@ for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
     assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
     assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
     for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, 'https://demo.example/mcp')
-    assert.ok(Object.keys(files).every(name => /^(skills\/|scripts\/|hooks\/|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
+    assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|scripts\/|hooks\/|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
     assert.equal(files['plugin.json'], undefined)
     assert.equal(files['scripts/setup.js'], undefined)
   })
@@ -35,22 +35,39 @@ for (const client of ['claude', 'codex']) {
   })
 }
 
-test('ChatGPT web packages only skills and an existing app reference', () => {
+test('ChatGPT web packages skills, listing fields and icon, with no app reference or MCP server', () => {
   assert.throws(() => packageFiles('chatgpt-web'), /existing registered/)
   assert.throws(() => packageFiles('chatgpt-web', { appId: 'plugin_123' }), /existing registered/)
   for (const appId of ['asdk_app_test', 'connector_test', 'templated_apps_test']) {
     const files = packageFiles('chatgpt-web', { appId })
-    assert.deepEqual(JSON.parse(files['.app.json']), { apps: { in_parallel: { id: appId, required: true } } })
     const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
-    assert.equal(manifest.apps, './.app.json')
+    assert.equal(files['.app.json'], undefined)
+    assert.equal(manifest.apps, undefined)
     assert.equal(manifest.hooks, undefined)
     assert.equal(manifest.mcpServers, undefined)
     assert.ok(files['skills/in-parallel/SKILL.md'])
     assert.equal(files['skills/in-parallel-work/SKILL.md'], undefined)
+    assert.deepEqual(files['assets/logo.png'], fs.readFileSync(path.join(source, 'assets/logo.png')))
     assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
     assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
-    assert.ok(!Object.keys(files).some(name => /mcp|^hooks\/|^scripts\//.test(name)))
+    assert.ok(!Object.keys(files).some(name => /mcp|app\.json|^hooks\/|^scripts\//.test(name)))
+    assert.ok(manifest.interface.shortDescription.length <= 30)
+    assert.equal(manifest.version, JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version)
   }
+  assert.deepEqual(Object.keys(packageFiles('chatgpt-web', { appId: 'asdk_app_6a587f19df988191a2256145fe65bb16' })).sort(),
+    ['.codex-plugin/plugin.json', 'LICENSE', 'NOTICE', 'assets/logo.png', 'skills/in-parallel/SKILL.md'])
+})
+
+test('ChatGPT web manifest name matches the existing OpenAI plugin for asdk_app_ IDs', () => {
+  const name = appId => JSON.parse(packageFiles('chatgpt-web', { appId })['.codex-plugin/plugin.json']).name
+  assert.equal(name('asdk_app_6a587f19df988191a2256145fe65bb16'), 'app-6a587f19df988191a2256145fe65bb16')
+  assert.equal(name('connector_test'), 'connector_test')
+})
+
+test('manifest icons resolve inside the Codex package and the Codex bundle ships the logo', () => {
+  const files = packageFiles('codex')
+  const { interface: ui } = JSON.parse(files['.codex-plugin/plugin.json'])
+  for (const icon of [ui.logo, ui.composerIcon]) assert.ok(files[icon.replace(/^\.\//, '')], icon)
 })
 
 test('rejects incompatible clients, endpoints, and app references before creating files', () => {
@@ -98,10 +115,4 @@ test('portable and native OpenAI manifests agree on hooks and presentation', () 
     assert.equal(JSON.parse(fs.readFileSync(path.join(source, name))).version, native.version)
   }
   assert.equal(portable.version, native.version)
-})
-
-test('changing a registered app invalidates the cloud package cache version', () => {
-  const version = appId => JSON.parse(packageFiles('chatgpt-web', { appId })['.codex-plugin/plugin.json']).version
-  assert.equal(version('asdk_app_first'), version('asdk_app_first'))
-  assert.notEqual(version('asdk_app_first'), version('asdk_app_second'))
 })

@@ -13,6 +13,7 @@
   "files": [
     "scripts/*.js",
     "skills",
+    "assets",
     "experimental",
     ".claude-plugin",
     ".codex-plugin",

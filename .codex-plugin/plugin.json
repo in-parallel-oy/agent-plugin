@@ -19,7 +19,7 @@
   "mcpServers": "./mcp.json",
   "interface": {
     "displayName": "In Parallel",
-    "shortDescription": "Bring your team's context to your assistant",
+    "shortDescription": "Meetings, decisions and plans",
     "longDescription": "Bring your team's context into conversations with your AI assistant.",
     "developerName": "In Parallel Oy",
     "category": "Productivity",
@@ -32,6 +32,11 @@
       "What needs my attention this week?",
       "Catch me up on my project.",
       "Record this finding for my team."
-    ]
+    ],
+    "supportURL": "https://support.in-parallel.com/en/",
+    "privacyPolicyURL": "https://in-parallel.com/privacy-policy/",
+    "termsOfServiceURL": "https://in-parallel.com/terms-of-use/",
+    "composerIcon": "./assets/logo.png",
+    "logo": "./assets/logo.png"
   }
 }
