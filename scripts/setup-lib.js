@@ -5,7 +5,6 @@ const os = require('node:os')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const { spawnSync } = require('node:child_process')
-const { endpointURL } = require('./runtime')
 
 const AGENTS = [
   { id: 'claude', name: 'Claude Code', command: 'claude' },
@@ -15,10 +14,11 @@ const AGENTS = [
 const SOURCE = path.resolve(__dirname, '..')
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 // Features the server still gates per company. Store listings ship without
-// them; setup adds each experimental/<feature> folder for non-production endpoints only.
-const EXPERIMENTAL = ['work-claims']
-// ponytail: every hook script serves work-claims; give features their own scripts when a second one needs hooks.
-const HOOK_SCRIPTS = ['context.js', 'remember-claim.js', 'runtime.js', 'store.js']
+// them; setup adds each experimental/<feature> skill folder for the Development environment only.
+const EXPERIMENTAL = ['agent-work']
+const DEVELOPMENT_HOSTS = ['www.in-parallel.dev', 'in-parallel.dev']
+// Receipts without an experimental list predate it and installed the retired work journal.
+const RETIRED = ['work-claims']
 const MARKETPLACE = 'in-parallel-setup'
 const PLUGIN = `in-parallel@${MARKETPLACE}`
 const RECEIPT = '.in-parallel-setup.json'
@@ -35,9 +35,27 @@ class ReplacementRequired extends Error {
 const pluginId = plugin => plugin.pluginId || plugin.id || ''
 
 function endpoint(value) {
-  try { return endpointURL(value).href } catch {
+  try {
+    if (typeof value !== 'string' || !value || /[\u0000-\u0020\u007f]/.test(value)) throw new Error()
+    const url = new URL(value)
+    if (url.username || url.password || url.search || url.hash ||
+        (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) throw new Error()
+    return url.href
+  } catch {
     throw new Error('Use an HTTPS MCP URL without credentials, query parameters, or a fragment. HTTP is allowed for localhost.')
   }
+}
+
+const experimentalFor = url => DEVELOPMENT_HOSTS.includes(new URL(endpoint(url)).hostname) ? EXPERIMENTAL : []
+
+// The retired work journal's local cache. setup/ beside it holds managed installs.
+function removeJournalCache(home = os.homedir(), log = console.log) {
+  const dir = path.join(home, '.in-parallel')
+  let names = []
+  try { names = fs.readdirSync(dir) } catch {}
+  const stale = names.filter(name => /^(contributions\.(json|lock)|contributions\.json\..+\.tmp|sessions|lock-.+)$/.test(name))
+  for (const name of stale) fs.rmSync(path.join(dir, name), { recursive: true, force: true })
+  if (stale.length) log(`Removed the retired work journal cache from ${dir}.`)
 }
 
 // Resolve a URL from the user's own client MCP configuration the way that client
@@ -112,19 +130,14 @@ function bundle(agent, url, source = SOURCE) {
   const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
   const manifestPath = `.${agent.id}-plugin/plugin.json`
   const manifest = JSON.parse(fs.readFileSync(path.join(source, manifestPath)))
-  const experimental = endpoint(url) === PRODUCTION ? [] : EXPERIMENTAL
-  for (const [name, content] of Object.entries(tree(path.join(source, 'skills')))) files[`${prefix}skills/${name}`] = content
-  for (const feature of experimental) {
-    const root = path.join(source, 'experimental', feature)
-    for (const [name, content] of Object.entries(tree(path.join(root, 'skills')))) files[`${prefix}skills/${name}`] = content
-    files[`${prefix}hooks/${agent.id}.json`] = fs.readFileSync(path.join(root, 'hooks', `${agent.id}.json`))
-    manifest.hooks = `./hooks/${agent.id}.json`
-    for (const name of HOOK_SCRIPTS) files[`${prefix}scripts/${name}`] = fs.readFileSync(path.join(source, 'scripts', name))
+  const experimental = experimentalFor(url)
+  for (const root of ['', ...experimental.map(feature => path.join('experimental', feature))]) {
+    for (const [name, content] of Object.entries(tree(path.join(source, root, 'skills')))) files[`${prefix}skills/${name}`] = content
   }
   for (const name of ['LICENSE', 'NOTICE']) files[`${prefix}${name}`] = fs.readFileSync(path.join(source, name))
   // The Codex manifest's interface icons point at ./assets/logo.png.
   if (agent.id === 'codex') files[`${prefix}assets/logo.png`] = fs.readFileSync(path.join(source, 'assets', 'logo.png'))
-  // Use the same literal endpoint for MCP and hooks, including Claude. Never alter the source checkout.
+  // Write the literal endpoint, including for Claude. Never alter the source checkout.
   for (const name of ['.mcp.json', 'mcp.json']) {
     const config = JSON.parse(fs.readFileSync(path.join(source, name), 'utf8'))
     config.mcpServers.in_parallel.url = endpoint(url)
@@ -137,7 +150,7 @@ function bundle(agent, url, source = SOURCE) {
   if (agent.id === 'claude') {
     files['.claude-plugin/marketplace.json'] = json({
       name: MARKETPLACE, owner: { name: 'In Parallel' },
-      metadata: { description: 'In Parallel skills, MCP, and hooks configured by interactive setup.' },
+      metadata: { description: 'In Parallel skills and MCP configured by interactive setup.' },
       plugins: [{ name: 'in-parallel', source: './plugins/in-parallel', version: manifest.version, description: manifest.description }],
     })
   } else if (agent.id === 'codex') {
@@ -286,11 +299,13 @@ function verifyMcp(agent, url, execute = run) {
   }
 }
 
-function instructions(agent, hooks) {
-  if (agent.id === 'codex') return `Restart Codex, authenticate with codex mcp login in_parallel${hooks ? ', then review and trust the In Parallel hooks in /hooks' : ''}. Start a new thread.`
-  if (agent.id === 'claude') return `Restart Claude Code and authenticate In Parallel through /mcp.${hooks ? ' Check its hooks with /hooks.' : ''}`
+function instructions(agent) {
+  if (agent.id === 'codex') return 'Restart Codex, authenticate with codex mcp login in_parallel. Start a new thread.'
+  if (agent.id === 'claude') return 'Restart Claude Code and authenticate In Parallel through /mcp.'
   return 'Reload Cursor, then check In Parallel in Customize and authenticate MCP. Local plugin imports must be allowed; an installed marketplace copy takes precedence.'
 }
+
+const verify = experimental => `ask your agent: Check my In Parallel connection.${experimental.length ? '\nTo try reporting back, send an In Parallel To do to your agent with Send to AI.' : ''}`
 
 function install(agent, url, { home, source, cwd, env, execute = run, dryRun = false, log = console.log, replace = [] } = {}) {
   url = endpoint(url)
@@ -329,26 +344,33 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
       }
     }
   }
-  const hooks = prepared.receipt.experimental.length > 0
-  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${hooks ? `\nExperimental: ${prepared.receipt.experimental.join(', ')}` : ''}\n${instructions(agent, hooks)}\nThen ask your agent: ${hooks ? 'Verify my In Parallel work journal setup. Use real work only.' : 'Check my In Parallel connection.'}`)
+  removeJournalCache(home, log)
+  const { experimental } = prepared.receipt
+  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\nExperimental: ${experimental.join(', ')}` : ''}\n${instructions(agent)}\nThen ${verify(experimental)}`)
 }
 
 function uninstall(agent, { home, execute = run, dryRun = false, log = console.log } = {}) {
   const root = target(agent, home)
   const state = preflight(agent, root, execute)
+  if (!dryRun) removeJournalCache(home, log)
   if (!state.receipt) { log(`${agent.name}: no setup-managed installation.`); return }
   if (dryRun) { log(`Would remove the setup-managed ${agent.name} installation at ${root}`); return }
   if (state.installed) execute(agent.command, ['plugin', agent.id === 'codex' ? 'remove' : 'uninstall', PLUGIN,
     ...(agent.id === 'claude' ? ['--scope', 'user'] : [])])
   if (state.registered) execute(agent.command, ['plugin', 'marketplace', 'remove', MARKETPLACE])
   fs.rmSync(root, { recursive: true })
-  log(`${agent.name}: removed. Existing work-claim history and other plugins were preserved.`)
+  log(`${agent.name}: removed. Other plugins were preserved.`)
 }
 
 function doctor(agent, { home, cwd, env, source, execute = run, log = console.log } = {}) {
+  removeJournalCache(home, log)
   const root = target(agent, home)
   const receipt = managed(root, agent)
   if (!receipt) { log(`${agent.name}: no setup-managed installation.`); return }
+  const features = receipt.experimental || RETIRED
+  if (features.join() !== experimentalFor(receipt.endpoint).join()) {
+    throw new Error(`${agent.name}: installed with ${features.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : 'outdated experimental features'}. Run setup again to update.`)
+  }
   preflightMcp(agent, receipt.endpoint, { home, cwd, env, source })
   if (agent.command) {
     const { installed, registered } = preflight(agent, root, execute)
@@ -356,27 +378,7 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
     if (!installed || installed.version !== receipt.version || installed.enabled !== true) throw new Error(`${agent.name}: prepared files do not match an enabled native installation. Run setup again.`)
   }
   verifyMcp(agent, receipt.endpoint, execute)
-  // Receipts written before experimental features existed always installed the hooks.
-  const hooks = receipt.experimental?.length !== 0
-  if (hooks && fs.existsSync(path.join(home || os.homedir(), '.in-parallel', 'contributions.lock'))) {
-    log(`${agent.name}: local journal cache lock exists; a writer may be active. If busy errors persist, stop all agent clients and confirm hook processes have exited before removing only ~/.in-parallel/contributions.lock. Keep contributions.json to preserve ownership and delayed-reply protection. Then check known work with get_work before reporting again.`)
-  }
-  if (hooks) activationStatus(agent, receipt, home, log)
-  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}\n${hooks ? 'To verify activation, ask your agent: Verify my In Parallel work journal setup. Use real work only; do not create a test contribution.' : 'To verify, ask your agent: Check my In Parallel connection.'}\n${instructions(agent, hooks)}`)
-}
-
-function activationStatus(agent, receipt, home = os.homedir(), log = console.log) {
-  let sessions = []
-  try {
-    const state = JSON.parse(fs.readFileSync(path.join(home, '.in-parallel', 'contributions.json'), 'utf8'))
-    sessions = Object.values(state.activation || {}).filter(item => item.client === agent.id && item.endpoint === receipt.endpoint && item.version === receipt.version)
-  } catch (error) {
-    if (error.code !== 'ENOENT') log(`${agent.name}: activation history unavailable; local state was preserved.`)
-  }
-  const complete = sessions.filter(item => item.context_at && item.read_at && item.report_at)
-    .sort((a, b) => Date.parse(b.report_at) - Date.parse(a.report_at))[0]
-  if (complete) log(`${agent.name}: context delivered, timeline read succeeded, and a work report was remembered in the same session. Last report: ${complete.report_at}. This records a past check; it does not verify current authentication.`)
-  else log(`${agent.name}: activation pending. Confirm available tools and session context in the client, then read get_work after your next real contribution report. Run doctor again; no synthetic journal entry is needed.`)
+  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}${features.length ? `\nExperimental: ${features.join(', ')}` : ''}\nTo verify, ${verify(features)}\n${instructions(agent)}`)
 }
 
 module.exports = { AGENTS, SOURCE, PRODUCTION, EXPERIMENTAL, MARKETPLACE, PLUGIN, RECEIPT, ReplacementRequired, endpoint, target, bundle, managed, install, uninstall, doctor }

@@ -33,11 +33,8 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     .filter(([name]) => name.startsWith(prefix))
     .map(([name, content]) => [name.slice(prefix.length), Buffer.from(content)]))
   if (cloud) {
-    for (const name of Object.keys(files)) {
-      if (name.startsWith('hooks/') || name.startsWith('scripts/') || ['.mcp.json', 'mcp.json'].includes(name)) delete files[name]
-    }
+    for (const name of ['.mcp.json', 'mcp.json']) delete files[name]
     const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
-    delete manifest.hooks
     delete manifest.mcpServers
     delete manifest.apps
     // OpenAI rejects .app.json and any declared MCP server for a plugin that
