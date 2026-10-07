@@ -24,7 +24,8 @@ without asking first.
    Adjust your work when it changes the task.
 4. **Finish.** Call `report_back` with `event: "finished"` and `output_url` for
    what you made, such as the pull request. A To do moves to Done, a risk is
-   resolved and an open question answered.
+   resolved and an open question answered. A decision's status does not
+   change; report on each To do in the reply's `linked_action_items` by its id.
 
 Pass `item_id` instead of `link` when you have an id from an item tool; never
 both. When the work came from a Brief, also pass the Brief's link as `from`.
@@ -39,13 +40,14 @@ wiki tools is credited to you.
 
 ## Without a link
 
-When nothing names an item, `report_back` records nothing. It may ask the
-person in place which To do the work is for; otherwise its reply asks you to
-ask in the conversation. Ask once, then report against the item they name.
-Work with no item is not recorded; do not create an item just to report on it.
+When the person asks you to report back but names no item, call `report_back`
+with only `event` (and `note`). It may ask them in place which To do the work
+is for; otherwise its reply asks you to ask in the conversation. Ask once, then
+report against the item they name. Work with no item is not recorded; do not
+create an item just to report on it.
 
-If `report_back` is unavailable, continue the work and tell the person their
-In Parallel company does not offer reporting back yet.
+If `report_back` is unavailable, continue the work and tell the person
+reporting back is not available in this In Parallel connection.
 
 ## Do not
 
