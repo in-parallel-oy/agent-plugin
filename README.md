@@ -105,7 +105,9 @@ The skill asks your assistant to report its work back on that item with the In
 Parallel `report_back` tool: when it starts, short notes as it goes, and when it
 finishes, with a link to what it made, such as a pull request. Starting moves a
 To do to Doing and finishing moves it to Done. Before finishing, your assistant
-reads the item again to see what people changed while it worked.
+reads the item again to see what people changed while it worked. When In
+Parallel says people outside your company can read the item, your assistant
+writes its notes for them and leaves out internal details.
 
 Your assistant never becomes the item's owner or assignee and never notifies
 anyone. Work that isn't about an item is not recorded.

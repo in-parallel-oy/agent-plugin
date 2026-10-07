@@ -27,6 +27,10 @@ without asking first.
    resolved and an open question answered. A decision's status does not
    change; report on each To do in the reply's `linked_action_items` by its id.
 
+When an item read or a `report_back` reply says people outside the company can
+read the item, write your notes so they can read them too. Leave out internal details, such as
+the names of other workspaces, private links and internal discussions.
+
 Pass `item_id` instead of `link` when you have an id from an item tool; never
 both. When the work came from a Brief, also pass the Brief's link as `from`.
 An identical repeat report is not recorded twice, so retrying is safe.
