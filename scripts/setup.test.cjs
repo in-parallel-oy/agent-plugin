@@ -283,9 +283,18 @@ for (const agent of setup.AGENTS) {
       delete receipt.files[name]
     }
     fs.writeFileSync(file, JSON.stringify(receipt))
-    assert.throws(() => setup.doctor(agent, options), /outdated experimental features\. Run setup again/)
+    assert.throws(() => setup.doctor(agent, options), /installed with outdated files\. Run setup again/)
     setup.install(agent, url, options)
     setup.doctor(agent, options)
+
+    // A production copy missing a newer base skill file needs setup again too, without naming experimental features.
+    setup.install(agent, PRODUCTION, options)
+    const base = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const skill = Object.keys(base.files).find(name => name.startsWith(`${prefix}skills/in-parallel/`))
+    fs.rmSync(path.join(root, skill))
+    delete base.files[skill]
+    fs.writeFileSync(file, JSON.stringify(base))
+    assert.throws(() => setup.doctor(agent, options), error => /installed with outdated files\./.test(error.message) && !/experimental/.test(error.message))
 
     setup.uninstall(agent, options)
     assert.equal(fs.existsSync(root), false)

@@ -387,13 +387,15 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
   const root = target(agent, home)
   const receipt = managed(root, agent)
   if (!receipt) { log(`${agent.name}: no setup-managed installation.`); return }
-  const installed = receipt.experimental || RETIRED
-  // Files a feature adds since this copy was installed also need setup again.
-  const expected = Object.keys(bundle(agent, receipt.endpoint, source).receipt.files)
-    .filter(name => /(^|\/)(hooks|scripts)\/|(^|\/)skills\//.test(name))
-  if (installed.join() !== experimentalFor(receipt.endpoint).join() || expected.some(name => !(name in receipt.files))) {
-    throw new Error(`${agent.name}: installed with ${installed.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : 'outdated experimental features'}. Run setup again to update.`)
+  const installedFeatures = receipt.experimental || RETIRED
+  if (installedFeatures.join() !== experimentalFor(receipt.endpoint).join()) {
+    throw new Error(`${agent.name}: installed with ${installedFeatures.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : 'outdated experimental features'}. Run setup again to update.`)
   }
+  // Files added to the plugin since this copy was installed also need setup again.
+  const missing = Object.keys(bundle(agent, receipt.endpoint, source).receipt.files)
+    .filter(name => /(^|\/)(hooks|scripts)\/|(^|\/)skills\//.test(name))
+    .some(name => !(name in receipt.files))
+  if (missing) throw new Error(`${agent.name}: installed with outdated files. Run setup again to update.`)
   preflightMcp(agent, receipt.endpoint, { home, cwd, env, source })
   if (agent.command) {
     const { installed, registered } = preflight(agent, root, execute)
@@ -401,7 +403,7 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
     if (!installed || installed.version !== receipt.version || installed.enabled !== true) throw new Error(`${agent.name}: prepared files do not match an enabled native installation. Run setup again.`)
   }
   verifyMcp(agent, receipt.endpoint, execute)
-  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}${installed.length ? `\n${features(receipt)}` : ''}\nTo verify, ${verify(installed)}\n${instructions(agent, hooked(receipt))}`)
+  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\nTo verify, ${verify(installedFeatures)}\n${instructions(agent, hooked(receipt))}`)
 }
 
 module.exports = { AGENTS, SOURCE, PRODUCTION, EXPERIMENTAL, MARKETPLACE, PLUGIN, RECEIPT, ReplacementRequired, endpoint, target, bundle, managed, install, uninstall, doctor }
