@@ -122,8 +122,10 @@ that nudges your assistant to report:
 - when your message carries an In Parallel link, to report that it started;
 - after it opens or prints a pull request while working on an item, to pass
   the pull request as the link to what it made;
-- before it stops, once, if it was sent an item and has not reported it
-  finished. It can still stop by saying why the work isn't finished.
+- before it stops, if it was sent an item and has not reported it finished.
+  It reminds once, at the first stop after the item arrives or after its
+  latest report, which may come before the work is done. It can still stop by
+  saying why the work isn't finished.
 
 The hook reads only what your assistant passes it and the session's local
 transcript. It never reads your sign-in, connects to In Parallel or anything

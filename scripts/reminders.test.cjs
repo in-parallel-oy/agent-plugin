@@ -74,6 +74,10 @@ test('pull request reminders stay quiet without an item or once the link is repo
   assert.equal(respond({ hook_event_name: 'PostToolUse', transcript_path: sent, tool_name: 'Edit',
     tool_input: { file_path: 'a.md', new_string: 'gh pr create' }, tool_response: PR }), null)
   assert.equal(shell(undefined, 'gh pr create', PR), null)
+  // Once the item is reported finished, a later pull request is not for it.
+  const done = transcript(t, [prompt(SEND), report('started'), report('finished', { output_url: PR })])
+  assert.equal(shell(done, 'gh pr create --fill', 'https://github.com/acme/website/pull/43'), null)
+  assert.equal(shell(done, 'gh pr create --fill', ''), null)
 })
 
 test('Stop blocks once when an item was sent and not reported finished', t => {
@@ -87,6 +91,23 @@ test('Stop blocks once when an item was sent and not reported finished', t => {
   // Claude Code records the block as hook feedback; later turns stay quiet.
   const reminded = transcript(t, [prompt(SEND), { type: 'user', message: { role: 'user', content: `Stop hook feedback:\n[node reminders.js]: ${STOP_REASON}` } }, prompt('thanks')])
   assert.equal(stop(reminded), null)
+  // A note or a start after the reminder re-arms it for the next stop.
+  const feedback = { type: 'user', message: { role: 'user', content: `Stop hook feedback:\n[node reminders.js]: ${STOP_REASON}` } }
+  assert.deepEqual(stop(transcript(t, [prompt(SEND), report('started'), feedback, prompt('yes, open the PR'), report('note', { note: 'PR open' })])), { decision: 'block', reason: STOP_REASON })
+  assert.equal(stop(transcript(t, [prompt(SEND), report('started'), feedback, prompt('yes, open the PR')])), null)
+})
+
+test('a report_back without an item is not an item in play', t => {
+  // Without a link the agent asks which To do the work is for and waits; there is nothing to finish yet.
+  const ask = toolUse(SERVER_TOOL, { event: 'started' })
+  assert.equal(stop(transcript(t, [prompt('/in-parallel:work-on'), ask, toolResult('Ask the person which To do this is for.')])), null)
+  const codeAsk = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: 'await tools.mcp__in_parallel__report_back({ event: "started" })' } }
+  assert.equal(stop(transcript(t, [codexPrompt('work on one of my to dos'), codeAsk])), null)
+  assert.equal(shell(transcript(t, [prompt('/in-parallel:work-on'), ask]), 'gh pr create --fill', PR), null)
+  // A finished report without an item does not close the item that was sent.
+  assert.deepEqual(stop(transcript(t, [prompt(SEND), report('started'), toolUse(SERVER_TOOL, { event: 'finished' })])), { decision: 'block', reason: STOP_REASON })
+  // Once the person picks, the start names the item.
+  assert.ok(stop(transcript(t, [prompt('/in-parallel:work-on'), ask, prompt('2'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })])))
 })
 
 test('Stop accepts a finished report from Claude Code and Codex transcripts', t => {

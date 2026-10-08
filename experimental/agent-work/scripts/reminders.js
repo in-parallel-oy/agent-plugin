@@ -13,7 +13,9 @@ const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
-const CODE_CALL = /report_back\s*\(\s*\{[^}]*?\bevent\b["'\\\s:]{0,8}(started|finished)\b[^}]*\}/g
+const CODE_CALL = /report_back\s*\(\s*\{[^}]*?\bevent\b["'\\\s:]{0,8}(started|note|finished)\b[^}]*\}/g
+// A report names its item with a link or an id; one without asks which To do it is for.
+const NAMES_ITEM = /\b(link|item_id)\b["'\\\s]{0,4}:/
 const OUTPUT_URL = /output_url["'\\\s:=]{0,8}(https?:\/\/[^\s"'\\,)}]+)/g
 const MAX_TRANSCRIPT = 32 * 1024 * 1024
 const STOP_REASON = 'In Parallel: you have not reported the In Parallel item you are working on as finished. ' +
@@ -70,9 +72,9 @@ function reportCalls(node, found = [], depth = 0) {
   const name = typeof node.name === 'string' ? node.name : typeof node.tool === 'string' ? node.tool : ''
   if (/(^|[_.:/])report_back$/.test(name)) {
     const args = parseArgs(node.input) || parseArgs(node.arguments) || {}
-    found.push({ event: args.event, text: JSON.stringify(args) })
+    found.push({ event: args.event, item: Boolean(args.link || args.item_id), text: JSON.stringify(args) })
   } else if (node.type === 'custom_tool_call' && typeof node.input === 'string') {
-    for (const match of node.input.matchAll(CODE_CALL)) found.push({ event: match[1], text: match[0] })
+    for (const match of node.input.matchAll(CODE_CALL)) found.push({ event: match[1], item: NAMES_ITEM.test(match[0]), text: match[0] })
   }
   for (const value of Object.values(node)) if (value && typeof value === 'object') reportCalls(value, found, depth + 1)
   return found
@@ -97,8 +99,11 @@ function scan(transcript) {
     if (reminder && state.sent) state.reminded = true
     if (report) {
       for (const call of reportCalls(entry)) {
+        if (!call.item) continue
         // A start after a finish is new work on an item.
         if (call.event === 'started' && (!state.sent || state.finished)) Object.assign(state, { sent: true, finished: false, reminded: false })
+        // Progress after a reminder re-arms it for the next stop.
+        if (['started', 'note'].includes(call.event) && state.sent && !state.finished) state.reminded = false
         if (call.event === 'finished' && state.sent) state.finished = true
         for (const match of call.text.matchAll(OUTPUT_URL)) state.reported.add(match[1])
       }
@@ -132,13 +137,13 @@ function respond(input) {
     const url = (JSON.stringify(input.tool_response ?? '').match(PULL_REQUEST) || [])[0]
     if (!url && !CREATE_PR.test(command)) return null
     const state = scan(readTranscript(input.transcript_path))
-    if (!state.sent || (url && state.reported.has(url))) return null
+    if (!state.sent || state.finished || (url && state.reported.has(url))) return null
     return context(event, url
       ? `You have a pull request: ${url}. If it is for the In Parallel item you are working on, pass it as output_url when you call report_back.`
       : 'You ran gh pr create. If it made a pull request for the In Parallel item you are working on, pass its link as output_url when you call report_back.')
   }
   if (event === 'Stop') {
-    // Block once: stop_hook_active means this stop already follows a block.
+    // Block once between reports: stop_hook_active means this stop already follows a block.
     if (input.stop_hook_active || input.agent_id || input.agent_type) return null
     const state = scan(readTranscript(input.transcript_path))
     if (!state.sent || state.finished || state.reminded) return null
