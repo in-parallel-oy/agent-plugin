@@ -249,7 +249,7 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
   setup.install(agent, PRODUCTION, options)
   const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
   fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental: ['agent-work'] }))
-  assert.throws(() => setup.doctor(agent, options), /outdated experimental features/)
+  assert.throws(() => setup.doctor(agent, options), /experimental features that .* no longer gets/)
 })
 
 for (const agent of setup.AGENTS) {

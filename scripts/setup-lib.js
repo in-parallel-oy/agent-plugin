@@ -389,7 +389,7 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
   if (!receipt) { log(`${agent.name}: no setup-managed installation.`); return }
   const installedFeatures = receipt.experimental || RETIRED
   if (installedFeatures.join() !== experimentalFor(receipt.endpoint).join()) {
-    throw new Error(`${agent.name}: installed with ${installedFeatures.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : 'outdated experimental features'}. Run setup again to update.`)
+    throw new Error(`${agent.name}: installed with ${installedFeatures.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : `experimental features that ${receipt.endpoint} no longer gets`}. Run setup again to update.`)
   }
   // Files added to the plugin since this copy was installed also need setup again.
   const missing = Object.keys(bundle(agent, receipt.endpoint, source).receipt.files)
