@@ -192,22 +192,36 @@ test('unmanaged directories and symlinks are never replaced', t => {
 })
 
 
-test('only the Development environment adds experimental features, with no hooks or scripts', () => {
+test('only the Development environment adds experimental features, and reminder hooks only for Claude Code and Codex', () => {
   for (const agent of setup.AGENTS) {
     const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
     for (const url of [PRODUCTION, 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp',
       'https://staging.in-parallel.dev/mcp', 'https://www.in-parallel.dev.example.com/mcp']) {
       const stable = setup.bundle(agent, url)
       assert.deepEqual(stable.receipt.experimental, [], url)
-      assert.ok(!Object.keys(stable.files).some(name => /in-parallel-agent-work/.test(name)), url)
+      assert.ok(!Object.keys(stable.files).some(name => /in-parallel-agent-work|work-on|(^|\/)(hooks|scripts)\//.test(name)), url)
+      assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
     }
     for (const url of ['https://www.in-parallel.dev/mcp', 'https://in-parallel.dev/mcp']) {
       const dev = setup.bundle(agent, url)
       assert.deepEqual(dev.receipt.experimental, ['agent-work'])
-      assert.ok(dev.files[`${prefix}skills/in-parallel-agent-work/SKILL.md`])
-      assert.ok(dev.files[`${prefix}skills/in-parallel/SKILL.md`])
-      assert.equal(JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
-      assert.ok(!Object.keys(dev.files).some(name => /\/?(hooks|scripts)\//.test(name)))
+      for (const skill of ['in-parallel', 'in-parallel-agent-work', 'work-on']) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
+      assert.ok(dev.files[`${prefix}skills/work-on/agents/openai.yaml`])
+      const manifest = JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`])
+      const extra = Object.keys(dev.files).filter(name => /(^|\/)(hooks|scripts)\//.test(name)).sort()
+      if (agent.id === 'cursor') {
+        assert.equal(manifest.hooks, undefined)
+        assert.deepEqual(extra, [])
+        continue
+      }
+      assert.equal(manifest.hooks, `./hooks/${agent.id}.json`)
+      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`])
+      const hooks = JSON.parse(dev.files[`${prefix}hooks/${agent.id}.json`]).hooks
+      assert.deepEqual(Object.keys(hooks), ['UserPromptSubmit', 'PostToolUse', 'Stop'])
+      const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
+      for (const groups of Object.values(hooks)) {
+        for (const hook of groups.flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
+      }
     }
   }
 })
@@ -237,6 +251,46 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
   fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental: ['agent-work'] }))
   assert.throws(() => setup.doctor(agent, options), /outdated experimental features/)
 })
+
+for (const agent of setup.AGENTS) {
+  test(`${agent.name}: Development install adds the work-on command and reminders; doctor reports them; uninstall removes them`, t => {
+    const home = fixture(t)
+    const native = host(agent, home)
+    const logs = []
+    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+    const url = 'https://www.in-parallel.dev/mcp'
+    setup.install(agent, url, options)
+    const root = setup.target(agent, home)
+    const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
+    const hooks = agent.id !== 'cursor'
+    assert.ok(fs.existsSync(path.join(plugin, 'skills', 'work-on', 'SKILL.md')))
+    assert.equal(fs.existsSync(path.join(plugin, 'scripts', 'reminders.js')), hooks)
+    assert.equal(fs.existsSync(path.join(plugin, 'hooks', `${agent.id}.json`)), hooks)
+    assert.equal(/\/hooks/.test(logs.join('\n')), hooks)
+    logs.length = 0
+    setup.doctor(agent, options)
+    const report = logs.join('\n')
+    assert.match(report, /Experimental: agent-work\nCommands: work-on\n/)
+    assert.match(report, hooks ? /Reminder hooks: on prompts with an In Parallel link, after pull requests, and before stopping/ : /Reminder hooks: not available for this client/)
+    assert.match(report, /work-on command/)
+
+    // A copy installed before the command and reminders existed needs setup again.
+    const file = path.join(root, setup.RECEIPT)
+    const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
+    for (const name of Object.keys(receipt.files).filter(name => name.startsWith(`${prefix}skills/work-on/`) || /(^|\/)(hooks|scripts)\//.test(name))) {
+      fs.rmSync(path.join(root, name))
+      delete receipt.files[name]
+    }
+    fs.writeFileSync(file, JSON.stringify(receipt))
+    assert.throws(() => setup.doctor(agent, options), /outdated experimental features\. Run setup again/)
+    setup.install(agent, url, options)
+    setup.doctor(agent, options)
+
+    setup.uninstall(agent, options)
+    assert.equal(fs.existsSync(root), false)
+  })
+}
 
 test('Cursor replacement stages outside plugin discovery and restores the prior bundle on failure', t => {
   const home = fixture(t)

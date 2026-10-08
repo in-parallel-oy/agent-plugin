@@ -10,16 +10,22 @@ const { packageFiles } = require('./package')
 const source = path.resolve(__dirname, '..')
 
 for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
-  test(`${client}: export has literal MCP endpoints, no hooks or scripts, and the agent work skill only for Development`, () => {
+  test(`${client}: export has literal MCP endpoints, and the agent work skills and reminders only for Development`, () => {
     for (const url of ['https://demo.example/mcp', 'https://www.in-parallel.dev/mcp']) {
       const files = packageFiles(client, { url })
       const kind = client === 'claude' ? 'claude' : 'codex'
-      assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, undefined)
-      assert.equal(Boolean(files['skills/in-parallel-agent-work/SKILL.md']), url.includes('in-parallel.dev'))
+      const dev = url.includes('in-parallel.dev')
+      // ChatGPT runs no plugin hooks, so its packages never carry them.
+      const hooks = dev && client !== 'chatgpt-desktop'
+      assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, hooks ? `./hooks/${kind}.json` : undefined)
+      assert.equal(Boolean(files['skills/in-parallel-agent-work/SKILL.md']), dev)
+      assert.equal(Boolean(files['skills/work-on/SKILL.md']), dev)
+      assert.equal(Boolean(files[`hooks/${kind}.json`]), hooks)
+      assert.equal(Boolean(files['scripts/reminders.js']), hooks)
       assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
       assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
       for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, url)
-      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
+      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/(claude|codex)\.json$|scripts\/reminders\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
       assert.equal(files['plugin.json'], undefined)
     }
   })

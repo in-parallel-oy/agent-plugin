@@ -14,7 +14,8 @@ const AGENTS = [
 const SOURCE = path.resolve(__dirname, '..')
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 // Features the server still gates per company. Store listings ship without
-// them; setup adds each experimental/<feature> skill folder for the Development environment only.
+// them; setup adds each experimental/<feature> folder for the Development environment only:
+// its skills, and its hooks/<agent>.json with its scripts where that client has hooks.
 const EXPERIMENTAL = ['agent-work']
 const DEVELOPMENT_HOSTS = ['www.in-parallel.dev', 'in-parallel.dev']
 // Receipts without an experimental list predate it and installed the retired work journal.
@@ -133,6 +134,12 @@ function bundle(agent, url, source = SOURCE) {
   const experimental = experimentalFor(url)
   for (const root of ['', ...experimental.map(feature => path.join('experimental', feature))]) {
     for (const [name, content] of Object.entries(tree(path.join(source, root, 'skills')))) files[`${prefix}skills/${name}`] = content
+    const hooks = path.join(source, root, 'hooks', `${agent.id}.json`)
+    if (!root || !fs.existsSync(hooks)) continue
+    if (manifest.hooks) throw new Error(`Only one experimental feature can add ${agent.name} hooks.`)
+    manifest.hooks = `./hooks/${agent.id}.json`
+    files[`${prefix}hooks/${agent.id}.json`] = fs.readFileSync(hooks)
+    for (const [name, content] of Object.entries(tree(path.join(source, root, 'scripts')))) files[`${prefix}scripts/${name}`] = content
   }
   for (const name of ['LICENSE', 'NOTICE']) files[`${prefix}${name}`] = fs.readFileSync(path.join(source, name))
   // The Codex manifest's interface icons point at ./assets/logo.png.
@@ -150,7 +157,7 @@ function bundle(agent, url, source = SOURCE) {
   if (agent.id === 'claude') {
     files['.claude-plugin/marketplace.json'] = json({
       name: MARKETPLACE, owner: { name: 'In Parallel' },
-      metadata: { description: 'In Parallel skills and MCP configured by interactive setup.' },
+      metadata: { description: `In Parallel skills${manifest.hooks ? ', hooks' : ''} and MCP configured by interactive setup.` },
       plugins: [{ name: 'in-parallel', source: './plugins/in-parallel', version: manifest.version, description: manifest.description }],
     })
   } else if (agent.id === 'codex') {
@@ -299,13 +306,26 @@ function verifyMcp(agent, url, execute = run) {
   }
 }
 
-function instructions(agent) {
-  if (agent.id === 'codex') return 'Restart Codex, authenticate with codex mcp login in_parallel. Start a new thread.'
-  if (agent.id === 'claude') return 'Restart Claude Code and authenticate In Parallel through /mcp.'
+const hooked = receipt => Object.keys(receipt.files).some(name => /(^|\/)hooks\//.test(name))
+
+function instructions(agent, hooks) {
+  if (agent.id === 'codex') return `Restart Codex, authenticate with codex mcp login in_parallel${hooks ? ', then review and trust the In Parallel hooks in /hooks' : ''}. Start a new thread.`
+  if (agent.id === 'claude') return `Restart Claude Code and authenticate In Parallel through /mcp.${hooks ? ' Check its hooks with /hooks.' : ''}`
   return 'Reload Cursor, then check In Parallel in Customize and authenticate MCP. Local plugin imports must be allowed; an installed marketplace copy takes precedence.'
 }
 
-const verify = experimental => `ask your agent: Check my In Parallel connection.${experimental.length ? '\nTo try reporting back, send an In Parallel To do to your agent with Send to AI.' : ''}`
+const verify = experimental => `ask your agent: Check my In Parallel connection.${experimental.length ? '\nTo try reporting back, send an In Parallel To do to your agent with Send to AI, or pick one with the work-on command.' : ''}`
+
+// What the experimental features installed, from the receipt's file list.
+function features(receipt) {
+  const names = Object.keys(receipt.files)
+  const skills = [...new Set(names.map(name => name.match(/(?:^|\/)skills\/([^/]+)\//)?.[1]).filter(Boolean))]
+  const commands = skills.filter(skill => skill === 'work-on')
+  const lines = [`Experimental: ${receipt.experimental.join(', ')}`]
+  if (commands.length) lines.push(`Commands: ${commands.join(', ')}`)
+  lines.push(hooked(receipt) ? 'Reminder hooks: on prompts with an In Parallel link, after pull requests, and before stopping' : 'Reminder hooks: not available for this client')
+  return lines.join('\n')
+}
 
 function install(agent, url, { home, source, cwd, env, execute = run, dryRun = false, log = console.log, replace = [] } = {}) {
   url = endpoint(url)
@@ -346,7 +366,7 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
   }
   removeJournalCache(home, log)
   const { experimental } = prepared.receipt
-  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\nExperimental: ${experimental.join(', ')}` : ''}\n${instructions(agent)}\nThen ${verify(experimental)}`)
+  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\n${features(prepared.receipt)}` : ''}\n${instructions(agent, hooked(prepared.receipt))}\nThen ${verify(experimental)}`)
 }
 
 function uninstall(agent, { home, execute = run, dryRun = false, log = console.log } = {}) {
@@ -367,9 +387,12 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
   const root = target(agent, home)
   const receipt = managed(root, agent)
   if (!receipt) { log(`${agent.name}: no setup-managed installation.`); return }
-  const features = receipt.experimental || RETIRED
-  if (features.join() !== experimentalFor(receipt.endpoint).join()) {
-    throw new Error(`${agent.name}: installed with ${features.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : 'outdated experimental features'}. Run setup again to update.`)
+  const installed = receipt.experimental || RETIRED
+  // Files a feature adds since this copy was installed also need setup again.
+  const expected = Object.keys(bundle(agent, receipt.endpoint, source).receipt.files)
+    .filter(name => /(^|\/)(hooks|scripts)\/|(^|\/)skills\//.test(name))
+  if (installed.join() !== experimentalFor(receipt.endpoint).join() || expected.some(name => !(name in receipt.files))) {
+    throw new Error(`${agent.name}: installed with ${installed.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : 'outdated experimental features'}. Run setup again to update.`)
   }
   preflightMcp(agent, receipt.endpoint, { home, cwd, env, source })
   if (agent.command) {
@@ -378,7 +401,7 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
     if (!installed || installed.version !== receipt.version || installed.enabled !== true) throw new Error(`${agent.name}: prepared files do not match an enabled native installation. Run setup again.`)
   }
   verifyMcp(agent, receipt.endpoint, execute)
-  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}${features.length ? `\nExperimental: ${features.join(', ')}` : ''}\nTo verify, ${verify(features)}\n${instructions(agent)}`)
+  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}${installed.length ? `\n${features(receipt)}` : ''}\nTo verify, ${verify(installed)}\n${instructions(agent, hooked(receipt))}`)
 }
 
 module.exports = { AGENTS, SOURCE, PRODUCTION, EXPERIMENTAL, MARKETPLACE, PLUGIN, RECEIPT, ReplacementRequired, endpoint, target, bundle, managed, install, uninstall, doctor }
