@@ -43,8 +43,8 @@ new conversation with your assistant.
 
 The plugin has two parts: the `in-parallel` skill and a connection to the In
 Parallel server. It runs no hooks or scripts on your machine and keeps no local
-files. The files under `experimental/` are not part of it; see
-[Experimental features](#experimental-features).
+files. The files under `experimental/`, including their hooks, are not part of
+it; see [Experimental features](#experimental-features).
 
 ### What is sent to In Parallel
 
@@ -112,7 +112,23 @@ writes its notes for them and leaves out internal details.
 Your assistant never becomes the item's owner or assignee and never notifies
 anyone. Work that isn't about an item is not recorded.
 
-The feature adds no hooks or scripts and keeps no local files.
+To start without Send to AI, run the `work-on` command (`/in-parallel:work-on`
+in Claude Code; the `work-on` skill in Codex and Cursor). Your assistant lists your open To dos,
+you pick one, and it reports starting on it.
+
+In Claude Code and Codex, the feature adds `scripts/reminders.js` as a hook
+that nudges your assistant to report:
+
+- when your message carries an In Parallel link, to report that it started;
+- after it opens or prints a pull request while working on an item, to pass
+  the pull request as the link to what it made;
+- before it stops, once, if it was sent an item and has not reported it
+  finished. It can still stop by saying why the work isn't finished.
+
+The hook reads only what your assistant passes it and the session's local
+transcript. It never reads your sign-in, connects to In Parallel or anything
+else, or writes files. Codex asks you to trust the hook in `/hooks` first. Cursor
+gets the command but no reminders.
 
 ## Need help?
 
