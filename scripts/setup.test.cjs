@@ -10,6 +10,14 @@ const setup = require('./setup-lib')
 // The shipped default endpoint, read rather than repeated so fixtures follow the config.
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 
+// Everything the retired work journal hooks left in ~/.in-parallel, plus a file setup must keep.
+function journalCache(home) {
+  const dir = path.join(home, '.in-parallel')
+  for (const name of ['contributions.lock', 'sessions', 'lock-1-a']) fs.mkdirSync(path.join(dir, name), { recursive: true })
+  for (const name of ['contributions.json', 'contributions.json.1.a.tmp', 'sessions/marker.json', 'keep.txt']) fs.writeFileSync(path.join(dir, name), 'cache')
+  return () => fs.readdirSync(dir).filter(name => name !== 'setup').sort()
+}
+
 function fixture(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-setup-test-'))
   t.after(() => fs.rmSync(home, { recursive: true, force: true }))
@@ -67,17 +75,20 @@ for (const agent of setup.AGENTS) {
     const native = host(agent, home)
     const logs = []
     const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
-    fs.mkdirSync(path.join(home, '.in-parallel'))
-    const claims = path.join(home, '.in-parallel', 'contributions.json')
-    fs.writeFileSync(claims, 'existing claims')
+    const remaining = journalCache(home)
     setup.install(agent, 'http://localhost:54104/mcp', options)
+    assert.deepEqual(remaining(), ['keep.txt'])
+    assert.ok(logs.some(line => /Removed the retired work journal cache/.test(line)))
     const root = setup.target(agent, home)
     const first = setup.managed(root, agent)
     setup.install(agent, 'http://localhost:54104/mcp', options)
     assert.deepEqual(setup.managed(root, agent), first)
     assert.equal(native.marketplaces.length, agent.command ? 1 : 0)
+    journalCache(home)
     setup.doctor(agent, options)
-    assert.ok(logs.some(line => /To verify activation, ask your agent/.test(line)))
+    assert.deepEqual(remaining(), ['keep.txt'])
+    assert.ok(logs.some(line => /To verify, ask your agent: Check my In Parallel connection\.\n/.test(line)))
+    assert.ok(!logs.some(line => /Experimental|Send to AI|work journal setup|hooks/.test(line)))
     const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
     assert.equal(fs.existsSync(path.join(plugin, 'plugin.json')), false)
     for (const file of ['.mcp.json', 'mcp.json']) {
@@ -86,23 +97,25 @@ for (const agent of setup.AGENTS) {
       expected.mcpServers.in_parallel.url = 'http://localhost:54104/mcp'
       assert.deepEqual(JSON.parse(fs.readFileSync(path.join(plugin, file), 'utf8')), expected)
     }
-    const script = `const runtime = require(${JSON.stringify(path.join(plugin, 'scripts/runtime.js'))}); console.log(runtime.endpoint(${JSON.stringify(agent.id)}).href)`
-    const result = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', env: { ...process.env, IN_PARALLEL_MCP_URL: 'https://wrong-environment.test/mcp' } })
-    assert.equal(result.status, 0, result.stderr)
-    assert.equal(result.stdout.trim(), 'http://localhost:54104/mcp')
+    assert.equal(fs.existsSync(path.join(plugin, 'scripts')), false)
+    journalCache(home)
     setup.uninstall(agent, options)
     assert.equal(fs.existsSync(root), false)
     assert.equal(native.plugins.length, 0)
     assert.equal(native.marketplaces.length, 0)
-    assert.equal(fs.readFileSync(claims, 'utf8'), 'existing claims')
+    assert.deepEqual(remaining(), ['keep.txt'])
   })
 
   test(`${agent.name}: dry run makes no files or native mutations`, t => {
     const home = fixture(t)
     const native = host(agent, home)
+    const remaining = journalCache(home)
+    const before = remaining()
     setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, dryRun: true, log() {} })
     assert.equal(fs.existsSync(setup.target(agent, home)), false)
     assert.ok(native.calls.every(args => args.includes('list')))
+    setup.uninstall(agent, { home, execute: native.execute, dryRun: true, log() {} })
+    assert.deepEqual(remaining(), before)
   })
 
   test(`${agent.name}: locally modified files survive updates and uninstall`, t => {
@@ -130,7 +143,7 @@ test('source and environment changes produce new cache versions without changing
   const prod = setup.bundle(agent, PRODUCTION, source)
   const local = setup.bundle(agent, 'http://localhost:54104/mcp', source)
   assert.notEqual(prod.receipt.version, local.receipt.version)
-  fs.appendFileSync(path.join(source, 'scripts/remember-claim.js'), '\n// Updated runtime\n')
+  fs.appendFileSync(path.join(source, 'skills/in-parallel/SKILL.md'), '\nUpdated skill\n')
   assert.notEqual(setup.bundle(agent, 'http://localhost:54104/mcp', source).receipt.version, local.receipt.version)
   assert.equal(fs.readFileSync(path.join(source, 'mcp.json'), 'utf8'), original)
 })
@@ -179,40 +192,114 @@ test('unmanaged directories and symlinks are never replaced', t => {
 })
 
 
-test('production installs skip experimental features; other endpoints add them', () => {
+test('only the Development environment adds experimental features, and reminder hooks only for Claude Code and Codex', () => {
   for (const agent of setup.AGENTS) {
     const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
-    const stable = setup.bundle(agent, PRODUCTION)
-    assert.deepEqual(stable.receipt.experimental, [])
-    assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
-    assert.ok(!Object.keys(stable.files).some(name => /\/(hooks|scripts)\/|in-parallel-work/.test(name)))
-    for (const url of ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp']) {
+    for (const url of [PRODUCTION, 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp',
+      'https://staging.in-parallel.dev/mcp', 'https://www.in-parallel.dev.example.com/mcp']) {
+      const stable = setup.bundle(agent, url)
+      assert.deepEqual(stable.receipt.experimental, [], url)
+      assert.ok(!Object.keys(stable.files).some(name => /in-parallel-agent-work|work-on|(^|\/)(hooks|scripts)\//.test(name)), url)
+      assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
+    }
+    for (const url of ['https://www.in-parallel.dev/mcp', 'https://in-parallel.dev/mcp']) {
       const dev = setup.bundle(agent, url)
-      assert.deepEqual(dev.receipt.experimental, setup.EXPERIMENTAL)
-      const hooks = JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks
-      assert.ok(dev.files[`${prefix}${hooks.slice(2)}`])
-      assert.ok(dev.files[`${prefix}skills/in-parallel-work/SKILL.md`])
-      assert.ok(dev.files[`${prefix}scripts/context.js`])
+      assert.deepEqual(dev.receipt.experimental, ['agent-work'])
+      for (const skill of ['in-parallel', 'in-parallel-agent-work', 'work-on']) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
+      assert.ok(dev.files[`${prefix}skills/work-on/agents/openai.yaml`])
+      const manifest = JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`])
+      const extra = Object.keys(dev.files).filter(name => /(^|\/)(hooks|scripts)\//.test(name)).sort()
+      if (agent.id === 'cursor') {
+        assert.equal(manifest.hooks, undefined)
+        assert.deepEqual(extra, [])
+        continue
+      }
+      assert.equal(manifest.hooks, `./hooks/${agent.id}.json`)
+      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`])
+      const hooks = JSON.parse(dev.files[`${prefix}hooks/${agent.id}.json`]).hooks
+      assert.deepEqual(Object.keys(hooks), ['UserPromptSubmit', 'PostToolUse', 'Stop'])
+      const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
+      for (const groups of Object.values(hooks)) {
+        for (const hook of groups.flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
+      }
     }
   }
 })
 
-test('doctor reports an observed cache lock and explains safe recovery without removing it', t => {
+test('doctor asks to rerun setup for work journal receipts and accepts the current feature set', t => {
   const home = fixture(t)
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')
   const logs = []
   const options = { home, cwd: home, env: {}, log: message => logs.push(message) }
-  setup.install(agent, 'https://www.in-parallel.dev/mcp', options)
-  const lock = path.join(home, '.in-parallel', 'contributions.lock')
-  fs.mkdirSync(lock, { recursive: true })
-  const owner = path.join(lock, `${process.pid}-live`)
-  fs.writeFileSync(owner, 'keep')
-  setup.doctor(agent, options)
-  assert.match(logs.join('\n'), /local journal cache lock exists/)
-  assert.match(logs.join('\n'), /confirm hook processes have exited/)
-  assert.match(logs.join('\n'), /Keep contributions.json/)
-  assert.equal(fs.readFileSync(owner, 'utf8'), 'keep')
+  const file = path.join(setup.target(agent, home), setup.RECEIPT)
+  for (const url of ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp']) {
+    setup.install(agent, url, options)
+    const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
+    for (const experimental of [['work-claims'], undefined]) {
+      fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental }))
+      assert.throws(() => setup.doctor(agent, options), /retired work journal\. Run setup again/)
+    }
+    setup.install(agent, url, options)
+    logs.length = 0
+    setup.doctor(agent, options)
+    const dev = url.startsWith('https:')
+    assert.equal(/Experimental: agent-work/.test(logs.join('\n')), dev)
+    assert.equal(/Send to AI/.test(logs.join('\n')), dev)
+  }
+  setup.install(agent, PRODUCTION, options)
+  const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
+  fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental: ['agent-work'] }))
+  assert.throws(() => setup.doctor(agent, options), (error) => error.message.includes(`experimental features that ${PRODUCTION} no longer gets`))
 })
+
+for (const agent of setup.AGENTS) {
+  test(`${agent.name}: Development install adds the work-on command and reminders; doctor reports them; uninstall removes them`, t => {
+    const home = fixture(t)
+    const native = host(agent, home)
+    const logs = []
+    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+    const url = 'https://www.in-parallel.dev/mcp'
+    setup.install(agent, url, options)
+    const root = setup.target(agent, home)
+    const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
+    const hooks = agent.id !== 'cursor'
+    assert.ok(fs.existsSync(path.join(plugin, 'skills', 'work-on', 'SKILL.md')))
+    assert.equal(fs.existsSync(path.join(plugin, 'scripts', 'reminders.js')), hooks)
+    assert.equal(fs.existsSync(path.join(plugin, 'hooks', `${agent.id}.json`)), hooks)
+    assert.equal(/\/hooks/.test(logs.join('\n')), hooks)
+    logs.length = 0
+    setup.doctor(agent, options)
+    const report = logs.join('\n')
+    assert.match(report, /Experimental: agent-work\nCommands: work-on\n/)
+    assert.match(report, hooks ? /Reminder hooks: on prompts with an In Parallel link, after pull requests, and before stopping/ : /Reminder hooks: not available for this client/)
+    assert.match(report, /work-on command/)
+
+    // A copy installed before the command and reminders existed needs setup again.
+    const file = path.join(root, setup.RECEIPT)
+    const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
+    for (const name of Object.keys(receipt.files).filter(name => name.startsWith(`${prefix}skills/work-on/`) || /(^|\/)(hooks|scripts)\//.test(name))) {
+      fs.rmSync(path.join(root, name))
+      delete receipt.files[name]
+    }
+    fs.writeFileSync(file, JSON.stringify(receipt))
+    assert.throws(() => setup.doctor(agent, options), /installed with outdated files\. Run setup again/)
+    setup.install(agent, url, options)
+    setup.doctor(agent, options)
+
+    // A production copy missing a newer base skill file needs setup again too, without naming experimental features.
+    setup.install(agent, PRODUCTION, options)
+    const base = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const skill = Object.keys(base.files).find(name => name.startsWith(`${prefix}skills/in-parallel/`))
+    fs.rmSync(path.join(root, skill))
+    delete base.files[skill]
+    fs.writeFileSync(file, JSON.stringify(base))
+    assert.throws(() => setup.doctor(agent, options), error => /installed with outdated files\./.test(error.message) && !/experimental/.test(error.message))
+
+    setup.uninstall(agent, options)
+    assert.equal(fs.existsSync(root), false)
+  })
+}
 
 test('Cursor replacement stages outside plugin discovery and restores the prior bundle on failure', t => {
   const home = fixture(t)
@@ -467,32 +554,6 @@ test('a modified installation cannot prevent other selected agents from installi
   assert.equal(setup.managed(setup.target(setup.AGENTS[2], home), setup.AGENTS[2]).endpoint, 'http://localhost:54104/mcp')
 })
 
-
-test('doctor only reports observed activation for the installed endpoint and bundle in one session', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[1]
-  const native = host(agent, home)
-  const logs = []
-  const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
-  setup.install(agent, 'http://localhost:54104/mcp', options)
-  const receipt = setup.managed(setup.target(agent, home), agent)
-  const file = path.join(home, '.in-parallel', 'contributions.json')
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  const at = new Date().toISOString()
-  const complete = { client: agent.id, endpoint: receipt.endpoint, version: receipt.version, session: 'one', context_at: at, read_at: at, report_at: at }
-  const check = entries => {
-    fs.writeFileSync(file, JSON.stringify({ claims: {}, activation: entries }))
-    logs.length = 0
-    setup.doctor(agent, options)
-    return logs.join('\n')
-  }
-  assert.match(check({ other: { ...complete, endpoint: PRODUCTION } }), /activation pending/)
-  assert.match(check({ old: { ...complete, version: 'old' } }), /activation pending/)
-  assert.match(check({ one: { ...complete, report_at: null }, two: { ...complete, session: 'two', context_at: null } }), /activation pending/)
-  const verified = check({ one: complete })
-  assert.match(verified, /context delivered, timeline read succeeded, and a work report was remembered in the same session/)
-  assert.match(verified, /does not verify current authentication/)
-})
 
 for (const agent of setup.AGENTS.filter(agent => agent.command)) {
   function existing(native) {

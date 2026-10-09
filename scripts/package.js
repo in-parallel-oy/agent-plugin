@@ -32,12 +32,16 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
   const files = Object.fromEntries(Object.entries(prepared.files)
     .filter(([name]) => name.startsWith(prefix))
     .map(([name, content]) => [name.slice(prefix.length), Buffer.from(content)]))
-  if (cloud) {
-    for (const name of Object.keys(files)) {
-      if (name.startsWith('hooks/') || name.startsWith('scripts/') || ['.mcp.json', 'mcp.json'].includes(name)) delete files[name]
-    }
+  if (client.startsWith('chatgpt')) {
+    // ChatGPT runs no plugin hooks; leave out the Development reminders.
+    for (const name of Object.keys(files)) if (/^(hooks|scripts)\//.test(name)) delete files[name]
     const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
     delete manifest.hooks
+    files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
+  }
+  if (cloud) {
+    for (const name of ['.mcp.json', 'mcp.json']) delete files[name]
+    const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
     delete manifest.mcpServers
     delete manifest.apps
     // OpenAI rejects .app.json and any declared MCP server for a plugin that

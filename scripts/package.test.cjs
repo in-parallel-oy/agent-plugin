@@ -10,18 +10,24 @@ const { packageFiles } = require('./package')
 const source = path.resolve(__dirname, '..')
 
 for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
-  test(`${client}: export includes executable hooks and literal MCP endpoints without local state`, () => {
-    const files = packageFiles(client, { url: 'https://demo.example/mcp' })
-    const kind = client === 'claude' ? 'claude' : 'codex'
-    const manifest = JSON.parse(files[`.${kind}-plugin/plugin.json`])
-    assert.ok(files[manifest.hooks.slice(2)])
-    assert.ok(files['skills/in-parallel-work/SKILL.md'])
-    assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
-    assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
-    for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, 'https://demo.example/mcp')
-    assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|scripts\/|hooks\/|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
-    assert.equal(files['plugin.json'], undefined)
-    assert.equal(files['scripts/setup.js'], undefined)
+  test(`${client}: export has literal MCP endpoints, and the agent work skills and reminders only for Development`, () => {
+    for (const url of ['https://demo.example/mcp', 'https://www.in-parallel.dev/mcp']) {
+      const files = packageFiles(client, { url })
+      const kind = client === 'claude' ? 'claude' : 'codex'
+      const dev = url.includes('in-parallel.dev')
+      // ChatGPT runs no plugin hooks, so its packages never carry them.
+      const hooks = dev && client !== 'chatgpt-desktop'
+      assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, hooks ? `./hooks/${kind}.json` : undefined)
+      assert.equal(Boolean(files['skills/in-parallel-agent-work/SKILL.md']), dev)
+      assert.equal(Boolean(files['skills/work-on/SKILL.md']), dev)
+      assert.equal(Boolean(files[`hooks/${kind}.json`]), hooks)
+      assert.equal(Boolean(files['scripts/reminders.js']), hooks)
+      assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
+      assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
+      for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, url)
+      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/(claude|codex)\.json$|scripts\/reminders\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
+      assert.equal(files['plugin.json'], undefined)
+    }
   })
 }
 
@@ -31,7 +37,7 @@ for (const client of ['claude', 'codex']) {
     const manifest = JSON.parse(files[`.${client}-plugin/plugin.json`])
     assert.equal(manifest.hooks, undefined)
     assert.ok(files['skills/in-parallel/SKILL.md'])
-    assert.ok(!Object.keys(files).some(name => /^(hooks|scripts)\/|in-parallel-work/.test(name)))
+    assert.ok(!Object.keys(files).some(name => /^(hooks|scripts)\/|in-parallel-agent-work/.test(name)))
   })
 }
 
@@ -46,7 +52,7 @@ test('ChatGPT web packages skills, listing fields and icon, with no app referenc
     assert.equal(manifest.hooks, undefined)
     assert.equal(manifest.mcpServers, undefined)
     assert.ok(files['skills/in-parallel/SKILL.md'])
-    assert.equal(files['skills/in-parallel-work/SKILL.md'], undefined)
+    assert.equal(files['skills/in-parallel-agent-work/SKILL.md'], undefined)
     assert.deepEqual(files['assets/logo.png'], fs.readFileSync(path.join(source, 'assets/logo.png')))
     assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
     assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
@@ -104,7 +110,7 @@ test('creates an uploadable ZIP without client CLIs and refuses to overwrite an 
   assert.deepEqual(fs.readFileSync(output), archive)
 })
 
-test('portable and native OpenAI manifests agree on hooks and presentation', () => {
+test('portable and native OpenAI manifests declare no hooks and agree on presentation', () => {
   const portable = JSON.parse(fs.readFileSync(path.join(source, 'plugin.json')))
   const native = JSON.parse(fs.readFileSync(path.join(source, '.codex-plugin/plugin.json')))
   assert.equal(native.hooks, undefined)

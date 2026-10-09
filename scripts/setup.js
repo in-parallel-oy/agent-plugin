@@ -87,7 +87,7 @@ async function main(args = process.argv.slice(2), {
   }
   ui.outro(status ? 'Some agents need attention. Fix the errors above and run setup again.'
     : dryRun ? 'Preview complete. No changes made.' : skipped === agents.length ? 'No installations changed.'
-      : action === 'uninstall' ? 'Selected integrations removed.' : 'Setup complete. Follow the client steps above to activate hooks and sign in.')
+      : action === 'uninstall' ? 'Selected integrations removed.' : 'Setup complete. Follow the client steps above to sign in.')
   return status
 }
 

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Work on a To do"
+  short_description: "Pick an In Parallel To do and start it"
+policy:
+  allow_implicit_invocation: false
