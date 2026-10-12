@@ -51,8 +51,8 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
   }
   if (projects) {
-    // Project threads are cloud sessions: they get MCP tools from the claude.ai
-    // connector and run no plugin hooks, so ship skills and manifest only.
+    // Project threads are cloud sessions that get MCP tools from the claude.ai
+    // connector, so a plugin server would duplicate it. Ship skills only.
     for (const name of Object.keys(files)) {
       if (/^(hooks|scripts)\//.test(name) || ['.mcp.json', 'mcp.json'].includes(name)) delete files[name]
     }
