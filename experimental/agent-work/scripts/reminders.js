@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 'use strict'
 
-// Reporting reminders for the agent-work feature.
+// Reporting reminders for the agent-work feature: on a prompt carrying an In
+// Parallel link, and after a pull request. The stop reminder is not here: the
+// Stop hook asks In Parallel's report_back_reminder tool through the client's
+// own connection.
 //
-// Reads only the hook input on stdin and the local session transcript it names.
+// Reads only the hook input on stdin and, after a pull request, the local
+// session transcript it names.
 // Never reads credentials or settings, never connects to anything, never writes
 // files, and always exits 0 so a reminder can never break a session.
 
@@ -18,8 +22,6 @@ const CODE_CALL = /report_back\s*\(\s*\{[^}]*?\bevent\b["'\\\s:]{0,8}(started|no
 const NAMES_ITEM = /\b(link|item_id)\b["'\\\s]{0,4}:/
 const OUTPUT_URL = /output_url["'\\\s:=]{0,8}(https?:\/\/[^\s"'\\,)}]+)/g
 const MAX_TRANSCRIPT = 32 * 1024 * 1024
-const STOP_REASON = 'In Parallel: you have not reported the In Parallel item you are working on as finished. ' +
-  'Call report_back with event "finished" and output_url for what you made, or tell the person why the work is not finished.'
 
 function readTranscript(file) {
   if (typeof file !== 'string' || !file) return null
@@ -83,27 +85,23 @@ function reportCalls(node, found = [], depth = 0) {
 // What the transcript says about the In Parallel item this session works on: one
 // sent as a link in a prompt, or one the agent reported started (as /work-on does).
 function scan(transcript) {
-  const state = { sent: false, finished: false, reminded: false, reported: new Set() }
+  const state = { sent: false, finished: false, reported: new Set() }
   if (!transcript) return state
   for (const line of transcript.split('\n')) {
     const link = line.includes('in-parallel://')
     const report = line.includes('report_back')
-    const reminder = line.includes(STOP_REASON.slice(0, 60))
-    if (!link && !report && !reminder) continue
+    if (!link && !report) continue
     let entry
     try { entry = JSON.parse(line) } catch { continue }
     if (link && userTexts(entry).some(text => text.match(LINK))) {
       // A newly sent item needs its own report.
-      Object.assign(state, { sent: true, finished: false, reminded: false })
+      Object.assign(state, { sent: true, finished: false })
     }
-    if (reminder && state.sent) state.reminded = true
     if (report) {
       for (const call of reportCalls(entry)) {
         if (!call.item) continue
         // A start after a finish is new work on an item.
-        if (call.event === 'started' && (!state.sent || state.finished)) Object.assign(state, { sent: true, finished: false, reminded: false })
-        // Progress after a reminder re-arms it for the next stop.
-        if (['started', 'note'].includes(call.event) && state.sent && !state.finished) state.reminded = false
+        if (call.event === 'started' && (!state.sent || state.finished)) Object.assign(state, { sent: true, finished: false })
         if (call.event === 'finished' && state.sent) state.finished = true
         for (const match of call.text.matchAll(OUTPUT_URL)) state.reported.add(match[1])
       }
@@ -142,13 +140,6 @@ function respond(input) {
       ? `You have a pull request: ${url}. If it is for the In Parallel item you are working on, pass it as output_url when you call report_back.`
       : 'You ran gh pr create. If it made a pull request for the In Parallel item you are working on, pass its link as output_url when you call report_back.')
   }
-  if (event === 'Stop') {
-    // Block once between reports: stop_hook_active means this stop already follows a block.
-    if (input.stop_hook_active || input.agent_id || input.agent_type) return null
-    const state = scan(readTranscript(input.transcript_path))
-    if (!state.sent || state.finished || state.reminded) return null
-    return { decision: 'block', reason: STOP_REASON }
-  }
   return null
 }
 
@@ -161,4 +152,4 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { respond, scan, STOP_REASON }
+module.exports = { respond, scan }

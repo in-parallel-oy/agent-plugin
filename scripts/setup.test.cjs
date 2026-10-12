@@ -217,11 +217,18 @@ test('only the Development environment adds experimental features, and reminder 
       assert.equal(manifest.hooks, `./hooks/${agent.id}.json`)
       assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`])
       const hooks = JSON.parse(dev.files[`${prefix}hooks/${agent.id}.json`]).hooks
+      // Only the main agent's Stop is hooked: no SubagentStop and no SessionStart.
       assert.deepEqual(Object.keys(hooks), ['UserPromptSubmit', 'PostToolUse', 'Stop'])
       const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
-      for (const groups of Object.values(hooks)) {
-        for (const hook of groups.flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
+      for (const event of ['UserPromptSubmit', 'PostToolUse']) {
+        for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
       }
+      // The stop reminder asks In Parallel through the client's own connection, passing only stop_hook_active.
+      assert.deepEqual(hooks.Stop.flatMap(group => group.hooks), [{
+        type: 'mcp_tool', server: agent.id === 'claude' ? 'plugin:in-parallel:in_parallel' : 'in_parallel',
+        tool: 'report_back_reminder', input: { stop_hook_active: '${stop_hook_active}' }, timeout: 10,
+      }])
+      assert.deepEqual(Object.keys(hooks.Stop[0]), ['hooks'])
     }
   }
 })
@@ -266,6 +273,13 @@ for (const agent of setup.AGENTS) {
     assert.ok(fs.existsSync(path.join(plugin, 'skills', 'work-on', 'SKILL.md')))
     assert.equal(fs.existsSync(path.join(plugin, 'scripts', 'reminders.js')), hooks)
     assert.equal(fs.existsSync(path.join(plugin, 'hooks', `${agent.id}.json`)), hooks)
+    if (hooks) {
+      const installed = JSON.parse(fs.readFileSync(path.join(plugin, 'hooks', `${agent.id}.json`), 'utf8')).hooks
+      assert.deepEqual(installed, JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'experimental', 'agent-work', 'hooks', `${agent.id}.json`), 'utf8')).hooks)
+      assert.deepEqual(installed.Stop.flatMap(group => group.hooks).map(hook => [hook.type, hook.tool]), [['mcp_tool', 'report_back_reminder']])
+    }
+    assert.match(fs.readFileSync(path.join(plugin, 'skills', 'in-parallel-agent-work', 'SKILL.md'), 'utf8'),
+      /\*\*Put down\.\*\*[^]*`event: "note"`[^]*`update_action_item`[^]*never to Done or Cancelled unless they ask/)
     assert.equal(/\/hooks/.test(logs.join('\n')), hooks)
     logs.length = 0
     setup.doctor(agent, options)

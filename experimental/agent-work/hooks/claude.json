@@ -18,7 +18,7 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/reminders.js\"", "timeout": 10 }
+          { "type": "mcp_tool", "server": "plugin:in-parallel:in_parallel", "tool": "report_back_reminder", "input": { "stop_hook_active": "${stop_hook_active}" }, "timeout": 10 }
         ]
       }
     ]

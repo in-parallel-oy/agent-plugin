@@ -8,7 +8,7 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
 const SCRIPT = path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js')
-const { respond, STOP_REASON } = require(SCRIPT)
+const { respond, scan } = require(SCRIPT)
 const LINK = 'in-parallel://acme/action_item/0a1b2c3d-1111-2222-3333-444455556666'
 const PR = 'https://github.com/acme/website/pull/42'
 const SERVER_TOOL = 'mcp__plugin_in-parallel_in_parallel__report_back'
@@ -34,6 +34,8 @@ function transcript(t, lines) {
 }
 
 const stop = (file, extra = {}) => respond({ hook_event_name: 'Stop', session_id: 's', transcript_path: file, stop_hook_active: false, ...extra })
+// Whether the transcript has an item in play that is not reported finished, as the pull request reminder reads it.
+const inPlay = file => { const state = scan(file && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null); return state.sent && !state.finished }
 const shell = (file, command, output, extra = {}) => respond({ hook_event_name: 'PostToolUse', session_id: 's', transcript_path: file,
   tool_name: 'Bash', tool_input: { command }, tool_response: { stdout: output, stderr: '' }, ...extra })
 
@@ -80,63 +82,58 @@ test('pull request reminders stay quiet without an item or once the link is repo
   assert.equal(shell(done, 'gh pr create --fill', ''), null)
 })
 
-test('Stop blocks once when an item was sent and not reported finished', t => {
-  const file = transcript(t, [prompt(SEND), report('started'), toolResult('Recorded')])
-  assert.deepEqual(stop(file), { decision: 'block', reason: STOP_REASON })
-  assert.match(STOP_REASON, /^In Parallel: .*report_back.*"finished".*output_url.*why/)
-  assert.ok(!STOP_REASON.includes('in-parallel://'))
-  // The stop that follows a block, and subagents, are never blocked.
-  assert.equal(stop(file, { stop_hook_active: true }), null)
-  assert.equal(stop(file, { agent_id: 'agent-1' }), null)
-  // Claude Code records the block as hook feedback; later turns stay quiet.
-  const reminded = transcript(t, [prompt(SEND), { type: 'user', message: { role: 'user', content: `Stop hook feedback:\n[node reminders.js]: ${STOP_REASON}` } }, prompt('thanks')])
-  assert.equal(stop(reminded), null)
-  // A note or a start after the reminder re-arms it for the next stop.
-  const feedback = { type: 'user', message: { role: 'user', content: `Stop hook feedback:\n[node reminders.js]: ${STOP_REASON}` } }
-  assert.deepEqual(stop(transcript(t, [prompt(SEND), report('started'), feedback, prompt('yes, open the PR'), report('note', { note: 'PR open' })])), { decision: 'block', reason: STOP_REASON })
-  assert.equal(stop(transcript(t, [prompt(SEND), report('started'), feedback, prompt('yes, open the PR')])), null)
+test('the script never answers Stop: the stop reminder comes from In Parallel', t => {
+  const feedback = { type: 'user', message: { role: 'user', content: 'Stop hook feedback: report it finished' } }
+  for (const lines of [[prompt(SEND), report('started'), toolResult('Recorded')], [prompt(SEND)], [codexPrompt(SEND), codexCall('started')],
+    [prompt(SEND), report('started'), feedback, report('note', { note: 'PR open' })]]) {
+    const file = transcript(t, lines)
+    for (const extra of [{}, { stop_hook_active: true }, { agent_id: 'agent-1' }]) assert.equal(stop(file, extra), null)
+  }
+  assert.equal(stop(undefined), null)
+  assert.equal(respond({ hook_event_name: 'SubagentStop', stop_hook_active: false }), null)
+  assert.doesNotMatch(fs.readFileSync(SCRIPT, 'utf8'), /'Stop'|decision|STOP_REASON|reminded/)
 })
 
 test('a report_back without an item is not an item in play', t => {
   // Without a link the agent asks which To do the work is for and waits; there is nothing to finish yet.
   const ask = toolUse(SERVER_TOOL, { event: 'started' })
-  assert.equal(stop(transcript(t, [prompt('/in-parallel:work-on'), ask, toolResult('Ask the person which To do this is for.')])), null)
+  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, toolResult('Ask the person which To do this is for.')])), false)
   const codeAsk = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: 'await tools.mcp__in_parallel__report_back({ event: "started" })' } }
-  assert.equal(stop(transcript(t, [codexPrompt('work on one of my to dos'), codeAsk])), null)
+  assert.equal(inPlay(transcript(t, [codexPrompt('work on one of my to dos'), codeAsk])), false)
   assert.equal(shell(transcript(t, [prompt('/in-parallel:work-on'), ask]), 'gh pr create --fill', PR), null)
   // A finished report without an item does not close the item that was sent.
-  assert.deepEqual(stop(transcript(t, [prompt(SEND), report('started'), toolUse(SERVER_TOOL, { event: 'finished' })])), { decision: 'block', reason: STOP_REASON })
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), toolUse(SERVER_TOOL, { event: 'finished' })])), true)
   // Once the person picks, the start names the item.
-  assert.ok(stop(transcript(t, [prompt('/in-parallel:work-on'), ask, prompt('2'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })])))
+  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, prompt('2'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })])), true)
 })
 
-test('Stop accepts a finished report from Claude Code and Codex transcripts', t => {
-  assert.equal(stop(transcript(t, [prompt(SEND), report('started'), report('finished', { output_url: PR })])), null)
-  assert.equal(stop(transcript(t, [codexPrompt(SEND), codexCall('finished')])), null)
-  assert.equal(stop(transcript(t, [codexPrompt(SEND), codexCode('finished')])), null)
-  assert.deepEqual(stop(transcript(t, [codexPrompt(SEND), codexCall('started')])), { decision: 'block', reason: STOP_REASON })
-  assert.deepEqual(stop(transcript(t, [codexPrompt(SEND), codexCode('started')])), { decision: 'block', reason: STOP_REASON })
+test('a finished report from Claude Code and Codex transcripts ends the item in play', t => {
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('finished', { output_url: PR })])), false)
+  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('finished')])), false)
+  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('finished')])), false)
+  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('started')])), true)
+  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('started')])), true)
 })
 
-test('Stop follows the latest item and ignores links the person did not send', t => {
+test('the item in play follows the latest item and ignores links the person did not send', t => {
   // A second item sent after the first was finished needs its own report.
-  assert.ok(stop(transcript(t, [prompt(SEND), report('finished'), prompt(SEND)])))
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('finished'), prompt(SEND)])), true)
   // The work-on command starts by id, without a link in the prompt.
   const byId = toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })
-  assert.ok(stop(transcript(t, [prompt('/in-parallel:work-on'), byId])))
-  assert.ok(stop(transcript(t, [prompt(SEND), report('finished'), byId])))
+  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), byId])), true)
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('finished'), byId])), true)
   // Links in tool results, skill text that names the events, and other work are not an item to report.
   const skill = prompt('Call `report_back` with `event: "finished"` and `output_url` for what you made.')
   // Tool input that only mentions the tool, such as a search or a script, is not a report.
   const mention = toolUse('Bash', { command: `grep -n 'report_back' lib.ex # event: "started"` })
-  assert.equal(stop(transcript(t, [prompt('Fix the build'), mention])), null)
-  assert.ok(stop(transcript(t, [prompt(SEND), toolUse('Bash', { command: 'echo report_back event: finished' })])))
+  assert.equal(inPlay(transcript(t, [prompt('Fix the build'), mention])), false)
+  assert.equal(inPlay(transcript(t, [prompt(SEND), toolUse('Bash', { command: 'echo report_back event: finished' })])), true)
   for (const lines of [[prompt('Catch me up'), toolResult(`See ${LINK}`)], [prompt(SEND), skill, report('finished')], [prompt('Fix the build')], [prompt('Remind the agent when a prompt has an in-parallel:// link')], []]) {
-    assert.equal(stop(transcript(t, lines)), null)
+    assert.equal(inPlay(transcript(t, lines)), false)
   }
-  assert.deepEqual(stop(transcript(t, [prompt(SEND), skill])), { decision: 'block', reason: STOP_REASON })
-  assert.equal(stop(undefined), null)
-  assert.equal(stop(path.join(os.tmpdir(), 'in-parallel-missing-transcript.jsonl')), null)
+  assert.equal(inPlay(transcript(t, [prompt(SEND), skill])), true)
+  assert.equal(inPlay(undefined), false)
+  assert.equal(inPlay(path.join(os.tmpdir(), 'in-parallel-missing-transcript.jsonl')), false)
 })
 
 // Records every path the hook opens and module it loads, and any credential-like
@@ -171,7 +168,6 @@ function runHook(t, input, env = {}) {
 test('the hook reads only its input and the transcript, loads only fs, and never fails the session', t => {
   const file = transcript(t, [prompt(SEND), report('started')])
   for (const input of [
-    { hook_event_name: 'Stop', transcript_path: file, stop_hook_active: false },
     { hook_event_name: 'PostToolUse', transcript_path: file, tool_name: 'Bash', tool_input: { command: 'gh pr create' }, tool_response: { stdout: PR } },
     { hook_event_name: 'UserPromptSubmit', transcript_path: file, prompt: SEND },
   ]) {
@@ -185,11 +181,16 @@ test('the hook reads only its input and the transcript, loads only fs, and never
     assert.deepEqual([...new Set(seen.modules)].filter(name => name !== SCRIPT && !name.startsWith('internal/')), ['node:fs'])
     assert.deepEqual(seen.env.filter(key => /TOKEN|KEY|SECRET|PASS|AUTH|CRED|HOME|CONFIG/i.test(key)), [])
   }
-  for (const input of ['not json', '', JSON.stringify({ hook_event_name: 'Stop', transcript_path: 42 }), JSON.stringify({ hook_event_name: 'SessionStart' })]) {
+  for (const input of ['not json', '', JSON.stringify({ hook_event_name: 'PostToolUse', transcript_path: 42 }), JSON.stringify({ hook_event_name: 'SessionStart' })]) {
     const { status, stdout } = runHook(t, input)
     assert.equal(status, 0)
     assert.equal(stdout, '')
   }
+  // A Stop input gets no reply and the transcript is never read for it.
+  const { status, stdout, seen } = runHook(t, { hook_event_name: 'Stop', transcript_path: file, stop_hook_active: false })
+  assert.equal(status, 0)
+  assert.equal(stdout, '')
+  assert.ok(!seen.paths.some(([, target]) => target === file), JSON.stringify(seen.paths))
 })
 
 test('the hook source never reaches for the network, processes or credentials', () => {
