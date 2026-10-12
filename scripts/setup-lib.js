@@ -126,12 +126,12 @@ function target(agent, home = os.homedir()) {
     : path.join(home, '.in-parallel', 'setup', agent.id)
 }
 
-function bundle(agent, url, source = SOURCE) {
+// Setup never passes experimental; scripts/e2e-bundle.js does, for a loopback endpoint.
+function bundle(agent, url, source = SOURCE, experimental = experimentalFor(url)) {
   const files = {}
   const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
   const manifestPath = `.${agent.id}-plugin/plugin.json`
   const manifest = JSON.parse(fs.readFileSync(path.join(source, manifestPath)))
-  const experimental = experimentalFor(url)
   for (const root of ['', ...experimental.map(feature => path.join('experimental', feature))]) {
     for (const [name, content] of Object.entries(tree(path.join(source, root, 'skills')))) files[`${prefix}skills/${name}`] = content
     const hooks = path.join(source, root, 'hooks', `${agent.id}.json`)

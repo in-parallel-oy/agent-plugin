@@ -12,6 +12,7 @@
   },
   "files": [
     "scripts/*.js",
+    "!scripts/e2e-bundle.js",
     "skills",
     "assets",
     "experimental",
