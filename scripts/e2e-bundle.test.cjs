@@ -2,6 +2,7 @@
 
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
+const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -83,6 +84,10 @@ test('non-loopback URLs, bad variable names, other agents and foreign directorie
 
 test('setup still adds experimental features for the Development host only, and the tool is not shipped', () => {
   for (const agent of setup.AGENTS) assert.deepEqual(setup.bundle(agent, ENDPOINT).receipt.experimental, [])
-  const files = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'package.json'), 'utf8')).files
-  assert.ok(files.includes('!scripts/e2e-bundle.js'))
+  const [{ files }] = JSON.parse(
+    execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: setup.SOURCE, encoding: 'utf8' })
+  )
+  const packed = files.map(file => file.path)
+  assert.ok(packed.includes('scripts/setup.js'))
+  assert.ok(!packed.includes('scripts/e2e-bundle.js'))
 })
