@@ -141,11 +141,12 @@ when Codex uses the newest protocol revision. Otherwise, as with Claude Code,
 any of your sessions may be reminded once about another session's started
 item. In Parallel answers from the reports it recorded:
 
-- It reminds once per report: at the first stop after your assistant reports
-  starting or a note on an item, which may come before the work is done. Your
-  assistant can still stop by saying why the work isn't finished.
-- It never reminds at the stop right after a reminder, even if your assistant
-  reports a note while explaining.
+- It reminds once per start: at the first stop after your assistant reports
+  starting an item, which may come before the work is done. Your assistant can
+  still stop by saying why the work isn't finished.
+- Notes never bring the reminder back. Only reporting the item started again
+  does, until it is finished.
+- It never reminds at the stop right after a reminder.
 - An item you sent but your assistant never reported started is not reminded
   about at stop. The prompt reminder still asks it to report that it started.
 - A subagent's end is never held up; only the main assistant's stop is hooked.
