@@ -136,9 +136,10 @@ Before your assistant stops, its `Stop` hook asks In Parallel's
 connection, whether it has an item it reported started and not yet finished.
 The hook sends only whether this stop already follows a reminder; it reads no
 transcript, sign-in or setting. Codex also names its conversation thread, as it
-does on every tool call, so In Parallel reminds each Codex thread only about
-items that thread reported started. In Parallel answers from the reports it
-recorded:
+does on every tool call, and In Parallel scopes reminders to that thread only
+when Codex uses the newest protocol revision. Otherwise, as with Claude Code,
+any of your sessions may be reminded once about another session's started
+item. In Parallel answers from the reports it recorded:
 
 - It reminds once per report: at the first stop after your assistant reports
   starting or a note on an item, which may come before the work is done. Your
