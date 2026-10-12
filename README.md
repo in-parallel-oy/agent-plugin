@@ -116,21 +116,51 @@ To start without Send to AI, run the `work-on` command (`/in-parallel:work-on`
 in Claude Code; the `work-on` skill in Codex and Cursor). Your assistant lists your open To dos,
 you pick one, and it reports starting on it.
 
-In Claude Code and Codex, the feature adds `scripts/reminders.js` as a hook
-that nudges your assistant to report:
+To put a To do down, ask your assistant to drop it. It reports a note saying
+why and moves the To do back to To do, never to Done or Cancelled unless you ask.
+
+In Claude Code and Codex, the feature adds hooks that nudge your assistant to
+report. `scripts/reminders.js` reminds it:
 
 - when your message carries an In Parallel link, to report that it started;
 - after it opens or prints a pull request while working on an item, to pass
-  the pull request as the link to what it made;
-- before it stops, if it was sent an item and has not reported it finished.
-  It reminds once, at the first stop after the item arrives or after its
-  latest report, which may come before the work is done. It can still stop by
-  saying why the work isn't finished.
+  the pull request as the link to what it made.
 
-The hook reads only what your assistant passes it and the session's local
-transcript. It never reads your sign-in, connects to In Parallel or anything
-else, or writes files. Codex asks you to trust the hook in `/hooks` first. Cursor
-gets the command but no reminders.
+That script reads only what your assistant passes it and, after a pull request,
+the session's local transcript, because the command and its output stay on your
+machine. It never reads your sign-in, connects to In Parallel or anything else,
+or writes files.
+
+Before your assistant stops, its `Stop` hook asks In Parallel's
+`report_back_reminder` tool, through your assistant's own In Parallel
+connection, whether it has an item it reported started and not yet finished.
+The hook sends only whether this stop already follows a reminder; it reads no
+transcript, sign-in or setting. In Parallel answers from the reports it
+recorded:
+
+- It reminds once per report: at the first stop after your assistant reports
+  starting or a note on an item, which may come before the work is done. Your
+  assistant can still stop by saying why the work isn't finished.
+- It never reminds at the stop right after a reminder, even if your assistant
+  reports a note while explaining.
+- An item you sent but your assistant never reported started is not reminded
+  about at stop. The prompt reminder still asks it to report that it started.
+- A subagent's end is never held up; only the main assistant's stop is hooked.
+
+If the hook gets no answer, because you are signed out, your company does not
+have the feature yet, or In Parallel does not reply within 10 seconds, your
+assistant stops as usual. Your client may show its own hook-error notice at
+each stop when you are signed out or your company does not have the feature:
+Codex marks the In Parallel hook as failed.
+
+Codex asks you to trust the hooks in `/hooks` first, and again after they
+change. Cursor gets the command but no reminders.
+
+To try the feature against a local In Parallel server,
+`node scripts/e2e-bundle.js --agent claude|codex --url <loopback MCP URL> --out <dir> [--token-env NAME]`
+writes a plugin directory for `claude --plugin-dir`, or a local marketplace for
+Codex. With `--token-env`, the client reads a personal access token from that
+environment variable; the token itself is never written.
 
 ## Need help?
 
