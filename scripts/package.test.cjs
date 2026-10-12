@@ -58,6 +58,19 @@ test('ChatGPT web packages skills, listing fields and icon, with no app referenc
     ['.codex-plugin/plugin.json', 'LICENSE', 'NOTICE', 'assets/logo.png', 'skills/in-parallel/SKILL.md'])
 })
 
+test('Claude Projects packages skills and the Claude manifest, with no MCP server, hooks or scripts', () => {
+  const files = packageFiles('claude-projects')
+  const names = Object.keys(files)
+  assert.ok(files['skills/in-parallel/SKILL.md'])
+  assert.ok(files['.claude-plugin/plugin.json'])
+  assert.ok(!names.some(name => /^(hooks|scripts)\//.test(name) || ['.mcp.json', 'mcp.json'].includes(name)))
+  const manifest = JSON.parse(files['.claude-plugin/plugin.json'])
+  assert.equal(manifest.name, 'in-parallel')
+  assert.ok(!('mcpServers' in manifest) && !('hooks' in manifest))
+  assert.throws(() => packageFiles('claude-projects', { url: 'https://www.in-parallel.ai/mcp' }), /omit --url/)
+  assert.throws(() => packageFiles('claude-projects', { appId: 'asdk_app_test' }), /only supported/)
+})
+
 test('ChatGPT web manifest name matches the existing OpenAI plugin for asdk_app_ IDs', () => {
   const name = appId => JSON.parse(packageFiles('chatgpt-web', { appId })['.codex-plugin/plugin.json']).name
   assert.equal(name('asdk_app_6a587f19df988191a2256145fe65bb16'), 'app-6a587f19df988191a2256145fe65bb16')
