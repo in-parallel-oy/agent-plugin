@@ -28,6 +28,20 @@ Open the app's plugin browser and install **In Parallel** from your team's
 plugin library. If it isn't listed, add `https://github.com/in-parallel-oy/agent-plugin`
 as a plugin source, or ask your administrator to make it available.
 
+### Claude Projects
+
+Threads in a Claude project reach In Parallel through your claude.ai connector;
+the project conversation itself can't use In Parallel, only its threads can.
+
+1. Connect In Parallel under claude.ai → **Customize → Connectors**.
+2. Get the `claude-projects` ZIP from your administrator, or build it from a
+   checkout of this repository with `node scripts/package.js --client claude-projects`.
+   It holds the skill only, with no MCP server, hooks or scripts.
+3. Add it in **Project settings → Plugins**.
+
+If your workspace offers it, **Copy instructions for a Claude project** on the
+workspace's What's set up page gives you project instructions to paste in.
+
 ### Then
 
 Sign in to In Parallel, choose the workspaces you want to connect, and start a
