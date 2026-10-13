@@ -1,6 +1,6 @@
 ---
 name: in-parallel
-description: Reads team context and records findings in In Parallel. Use for workspace catch-ups, meetings, decisions, risks, action items, goals, team wiki questions, reusable findings or In Parallel links.
+description: Reads team context in In Parallel and records findings when asked. Use for workspace catch-ups, meetings, decisions, risks, action items, goals, team wiki questions, reusable findings or In Parallel links.
 ---
 
 # Working with In Parallel
@@ -19,12 +19,14 @@ report work on an item, or work the person did with no item named.
 ## Record findings
 
 Never create or edit records, such as pages or items, the person did not ask
-for. Confirm each write with them before publishing, showing the proposed
-content; a `report_back` report is the one exception.
+for. When you write the content, show what you will write and confirm it
+before publishing; a `report_back` report needs no confirmation, and neither
+does a status change the person asked for, such as putting a To do down.
 
 `capture_to_workspace` accepts ordinary prose: what you found, where and why it
-matters. Let the server choose the record kind. Capture new findings, constraints,
-decisions and risks, not progress updates.
+matters. Let the server choose the record kind. When a conversation turns up a
+new finding, constraint, decision or risk, offer to capture it; not progress
+updates.
 
 Offer to save team-facing summaries, specifications and write-ups in the workspace
 wiki. Respect a destination the user already requested.

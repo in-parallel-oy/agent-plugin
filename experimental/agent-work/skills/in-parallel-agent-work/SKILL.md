@@ -36,7 +36,8 @@ unless the person asks you to report it.
    `event: "note"` with a `note` saying why, then move it back to To do with
    `update_action_item`, never to Done or Cancelled unless they ask.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
-   saying so. That answers the reminder to finish when you stop.
+   saying so and leave the item in Doing. If the stop reminder then names it,
+   tell the person the work is paused.
 
 When the person says they did the work themselves, one `event: "finished"`
 report is enough: no start or re-read, and `output_url` only if they gave a
@@ -73,6 +74,8 @@ is also `best_match: true`. Do not make them name the item. Go by the matches:
 - **A `strong` match but no `best_match`:** call again with `ask: true` and
   your `event`, and follow its reply. Where it can, In Parallel asks them in
   place and records the one they pick.
+- **Only a `possible` match:** treat it as a lead, not a pick. Call again
+  with `ask: true` and your `event`, as for a `strong` match.
 - **No match:** offer to create a To do for the work with
   `create_action_item`, and report on it once they agree; never create one
   without asking. If one of the choices might still be it, call again with

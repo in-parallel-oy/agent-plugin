@@ -113,16 +113,17 @@ When you ask your assistant to report work without naming an item, it works
 out the item itself: it sends `report_back` one short sentence naming the work,
 and In Parallel records nothing and returns your open To dos, the ones that fit
 marked a strong match. Your assistant reports on the best match, a To do whose
-whole title the note covers, and tells you which; if only strong matches fit, it
-asks In Parallel to ask you (`ask: true`); if none fits, it offers to create a
-To do. Work with no link, such as a local file, is described in the note. When
+whole title the note covers, and tells you which; if only strong or possible
+matches fit, it asks In Parallel to ask you (`ask: true`); if none fits, it
+offers to create a To do. Work with no link, such as a local file, is described in the note. When
 you say you did the work yourself, it reports only that the item is finished.
 
 Your assistant reports only when it actually works on the item. Reading an
 item or answering your questions about it is not work on it, so nothing is
 reported, and it never finishes a To do it did not work on unless you ask it to
 report that. If you ask it to check with you before reporting, it does. If you
-ask it to pause, it reports a note saying so.
+ask it to pause, it reports a note saying so and leaves the item in Doing; if
+it is reminded to finish when it stops, it tells you the work is paused.
 
 The general `in-parallel` skill never creates or edits pages or items you did
 not ask for, and confirms each write with you except a `report_back` report.
