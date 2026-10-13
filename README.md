@@ -117,6 +117,10 @@ best match, a To do whose whole title the note covers, and tells you which; if a
 Parallel to ask you (`ask: true`); if none fits, it offers to create a To do.
 Work with no link, such as a local file, is described in the note.
 
+Your assistant reports only when it actually works on the item. Reading an
+item or answering your questions about it is not work on it, so nothing is
+reported, and it never finishes a To do it did not work on.
+
 Your assistant never becomes the item's owner or assignee and never notifies
 anyone. Work that isn't about an item is not recorded.
 
@@ -142,12 +146,16 @@ or writes files.
 Before your assistant stops, its `Stop` hook asks In Parallel's
 `report_back_reminder` tool, through your assistant's own In Parallel
 connection, whether it has an item it reported started and not yet finished.
-The hook sends only whether this stop already follows a reminder; it reads no
-transcript, sign-in or setting. Codex also names its conversation thread, as it
-does on every tool call, and In Parallel scopes reminders to that thread only
-when Codex uses the newest protocol revision. Otherwise, as with Claude Code,
-any of your sessions may be reminded once about another session's started
-item. In Parallel answers from the reports it recorded:
+The plugin's hooks scope reminders to the conversation. In Claude Code, the
+`Stop` hook sends whether this stop already follows a reminder and the
+conversation's session id, and a `PreToolUse` hook (`scripts/session.js`) adds
+the same id as `client_session` to each `report_back` call, so only the
+conversation that reported an item started is reminded about it. Neither reads
+a transcript, sign-in or setting. Codex names its conversation thread itself,
+as it does on every tool call, and In Parallel scopes reminders to that thread
+when Codex uses the newest protocol revision; otherwise any of your Codex
+sessions may be reminded once about another session's started item. In
+Parallel answers from the reports it recorded:
 
 - It reminds once per start: at the first stop after your assistant reports
   starting an item, which may come before the work is done. Your assistant can
@@ -161,7 +169,7 @@ item. In Parallel answers from the reports it recorded:
 
 When your company does not have the feature yet, In Parallel answers with no
 reminder and your assistant stops as usual. If the hook gets no answer, because
-you are signed out or In Parallel does not reply within 10 seconds, your
+you are signed out or In Parallel does not reply within 30 seconds, your
 assistant also stops as usual. Your client may show its own hook-error notice at
 each stop when you are signed out: Codex marks the In Parallel hook as failed.
 

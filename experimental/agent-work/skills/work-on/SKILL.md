@@ -7,7 +7,8 @@ disable-model-invocation: true
 # Work on one of your To dos
 
 The person asked to pick one of their open In Parallel To dos and work on it.
-Running this command is their go-ahead to report on the To do they pick.
+Running this command is their go-ahead to report on the To do they pick
+once you work on it.
 
 1. **List their To dos.** Call `report_back` with a `note` and no `event`,
    `link` or `item_id`. If they named a To do when they ran the command, the

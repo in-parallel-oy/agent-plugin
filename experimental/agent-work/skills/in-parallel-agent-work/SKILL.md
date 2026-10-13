@@ -8,8 +8,12 @@ description: Reports your work back to In Parallel on the item you were sent. Us
 People send you items from In Parallel with Send to AI. The prompt carries the
 item's permanent link, `in-parallel://<company>/<type>/<id>`, and a line asking
 you to report back. Report against that link with `report_back`, so the person
-sees your work on the item they own. The handoff is their go-ahead; report
+sees your work on the item they own. When you work on the item, report
 without asking first.
+
+Report only when you actually work on the item. Reading it or answering
+questions about it, such as "What has been done so far?", is not work: answer
+and do not report. Never finish a To do you did not work on.
 
 ## Report
 
@@ -37,6 +41,7 @@ the names of other workspaces, private links and internal discussions.
 Pass `item_id` instead of `link` when you have an id from an item tool; never
 both. When the work came from a Brief, also pass the Brief's link as `from`.
 An identical repeat report is not recorded twice, so retrying is safe.
+The plugin's hooks scope the stop reminder to this conversation.
 
 In a git checkout, `gh pr view --json url --jq .url` gives the branch's pull
 request. Pass only links you have seen; never guess one.
