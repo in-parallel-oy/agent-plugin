@@ -48,9 +48,10 @@ wiki tools is credited to you.
 ## Without a link
 
 When the person asks you to report back but names no item, call `report_back`
-with only `event` (and `note`). It records nothing and asks no one; its reply
-lists their open To dos as `choices`, the best match for your work first
-(`best_match: true`). Do not make them name the item:
+with `event` and a `note` describing the work, but no `link` or `item_id`. In
+Parallel finds the best match from the note, so do not leave it out. The call
+records nothing and asks no one; its reply lists their open To dos as
+`choices`, the best match for your work first (`best_match: true`). Do not make them name the item:
 
 - **One clearly matches:** report against its `id`, then tell them which item
   you used so they can correct it.

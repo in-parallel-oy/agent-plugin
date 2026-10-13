@@ -157,11 +157,11 @@ item. In Parallel answers from the reports it recorded:
   about at stop. The prompt reminder still asks it to report that it started.
 - A subagent's end is never held up; only the main assistant's stop is hooked.
 
-If the hook gets no answer, because you are signed out, your company does not
-have the feature yet, or In Parallel does not reply within 10 seconds, your
-assistant stops as usual. Your client may show its own hook-error notice at
-each stop when you are signed out or your company does not have the feature:
-Codex marks the In Parallel hook as failed.
+When your company does not have the feature yet, In Parallel answers with no
+reminder and your assistant stops as usual. If the hook gets no answer, because
+you are signed out or In Parallel does not reply within 10 seconds, your
+assistant also stops as usual. Your client may show its own hook-error notice at
+each stop when you are signed out: Codex marks the In Parallel hook as failed.
 
 Codex asks you to trust the hooks in `/hooks` first, and again after they
 change. Cursor gets the command but no reminders.

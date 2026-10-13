@@ -9,11 +9,13 @@ disable-model-invocation: true
 The person asked to pick one of their open In Parallel To dos and work on it.
 Running this command is their go-ahead to report on the To do they pick.
 
-1. **List their To dos.** Call `report_back` with only `event: "started"`.
-   It records nothing; its reply lists `choices`: up to ten of their open To
+1. **List their To dos.** Call `report_back` with `event: "started"` and no
+   `link` or `item_id`. If they named a To do when they ran the command, pass
+   their words as `note`: In Parallel ranks the matching choice first. It
+   records nothing; its reply lists `choices`: up to ten of their open To
    dos. If they have none, say so and stop.
 2. **Let them pick.** If they named a To do when they ran the command, take
-   the matching choice. Otherwise call `report_back` again with
+   the matching choice, usually the one marked `best_match: true`. Otherwise call `report_back` again with
    `event: "started"` and `ask: true`: where the client supports it, In
    Parallel asks the person in place and starts the To do they pick; go on to
    step 4 with that To do, and ask the person which one it was if the reply
