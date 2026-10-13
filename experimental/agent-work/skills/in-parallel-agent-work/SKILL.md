@@ -1,6 +1,6 @@
 ---
 name: in-parallel-agent-work
-description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, or the user names an In Parallel To do, risk or open question for you to work on.
+description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, or when they say they started, are working on or finished something and ask you to update or report to In Parallel.
 ---
 
 # Report work back on In Parallel items
@@ -47,19 +47,23 @@ wiki tools is credited to you.
 
 ## Without a link
 
-When the person asks you to report back but names no item, find it yourself;
-do not make them name it. Search their open To dos (`list_action_items`, or
-`search_observations` with words from the work):
+When the person asks you to report back but names no item, call `report_back`
+with only `event` (and `note`). It records nothing and asks no one; its reply
+lists their open To dos as `choices`, the best match for your work first
+(`best_match: true`). Do not make them name the item:
 
-- **One clearly matches:** report against its id, then tell them which item
+- **One clearly matches:** report against its `id`, then tell them which item
   you used so they can correct it.
-- **Several could fit:** call `report_back` with only `event` (and `note`).
-  In Parallel may ask them in place which To do it is for; otherwise its reply
-  asks you to ask in the conversation. Ask once, then report against the item
-  they name.
+- **Several could fit:** call again with `ask: true`. In Parallel asks them in
+  place; follow its reply. If no question appears, ask once in the
+  conversation, listing the choices, then report against the one they name.
 - **None fits:** offer to create a To do for the work with
   `create_action_item`, and report on it once they agree. Never create one
   without asking.
+
+A matching To do owned by a teammate may be missing from `choices`;
+`list_action_items` can find it. Report on someone else's To do only when the
+person confirms it.
 
 If `report_back` is unavailable, continue the work and tell the person
 reporting back is not available in this In Parallel connection.

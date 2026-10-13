@@ -95,12 +95,14 @@ test('the script never answers Stop: the stop reminder comes from In Parallel', 
 })
 
 test('a report_back without an item is not an item in play', t => {
-  // Without a link the agent asks which To do the work is for and waits; there is nothing to finish yet.
+  // Without an item the reply lists To dos and records nothing; there is nothing to finish yet.
   const ask = toolUse(SERVER_TOOL, { event: 'started' })
   assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, toolResult('Ask the person which To do this is for.')])), false)
   const codeAsk = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: 'await tools.mcp__in_parallel__report_back({ event: "started" })' } }
   assert.equal(inPlay(transcript(t, [codexPrompt('work on one of my to dos'), codeAsk])), false)
   assert.equal(shell(transcript(t, [prompt('/in-parallel:work-on'), ask]), 'gh pr create --fill', PR), null)
+  // Asking the person in place still names no item.
+  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, toolUse(SERVER_TOOL, { event: 'started', ask: true })])), false)
   // A finished report without an item does not close the item that was sent.
   assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), toolUse(SERVER_TOOL, { event: 'finished' })])), true)
   // Once the person picks, the start names the item.

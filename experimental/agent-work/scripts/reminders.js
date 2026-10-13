@@ -18,7 +18,7 @@ const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/p
 const CREATE_PR = /\bgh\s+pr\s+create\b/
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
 const CODE_CALL = /report_back\s*\(\s*\{[^}]*?\bevent\b["'\\\s:]{0,8}(started|note|finished)\b[^}]*\}/g
-// A report names its item with a link or an id; one without asks which To do it is for.
+// A report names its item with a link or an id; one without records nothing.
 const NAMES_ITEM = /\b(link|item_id)\b["'\\\s]{0,4}:/
 const OUTPUT_URL = /output_url["'\\\s:=]{0,8}(https?:\/\/[^\s"'\\,)}]+)/g
 const MAX_TRANSCRIPT = 32 * 1024 * 1024
