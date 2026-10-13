@@ -47,15 +47,19 @@ wiki tools is credited to you.
 
 ## Without a link
 
-When the person asks you to report back but names no item, look for it first:
-search their open To dos (`list_action_items`, or `search_observations` with
-words from the work). If exactly one clearly matches the work, report against
-its id and tell the person which item you used, so they can correct it. If
-several could fit, or none clearly does, call `report_back` with only `event`
-(and `note`): In Parallel may ask them in place which To do it is for, or its
-reply asks you to ask in the conversation. Ask once, then report against the
-item they name. Work with no item is not recorded; do not create an item just
-to report on it.
+When the person asks you to report back but names no item, find it yourself;
+do not make them name it. Search their open To dos (`list_action_items`, or
+`search_observations` with words from the work):
+
+- **One clearly matches:** report against its id, then tell them which item
+  you used so they can correct it.
+- **Several could fit:** call `report_back` with only `event` (and `note`).
+  In Parallel may ask them in place which To do it is for; otherwise its reply
+  asks you to ask in the conversation. Ask once, then report against the item
+  they name.
+- **None fits:** offer to create a To do for the work with
+  `create_action_item`, and report on it once they agree. Never create one
+  without asking.
 
 If `report_back` is unavailable, continue the work and tell the person
 reporting back is not available in this In Parallel connection.
