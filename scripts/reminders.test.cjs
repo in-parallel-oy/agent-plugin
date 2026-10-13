@@ -39,10 +39,11 @@ const inPlay = file => { const state = scan(file && fs.existsSync(file) ? fs.rea
 const shell = (file, command, output, extra = {}) => respond({ hook_event_name: 'PostToolUse', session_id: 's', transcript_path: file,
   tool_name: 'Bash', tool_input: { command }, tool_response: { stdout: output, stderr: '' }, ...extra })
 
-test('a prompt with an In Parallel link gets a reminder to report started', () => {
+test('a prompt with an In Parallel link gets a reminder to report started if it works on the item', () => {
   const output = respond({ hook_event_name: 'UserPromptSubmit', prompt: SEND })
   assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptSubmit')
-  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`link ${LINK}\\. Before you start, call report_back`))
+  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`link ${LINK}\\. If you work on this item, call report_back`))
+  assert.match(output.hookSpecificOutput.additionalContext, /answering questions about it is not work/)
   assert.match(output.hookSpecificOutput.additionalContext, /"started"/)
   for (const text of ['Fix the Safari login', 'see in-parallel:// for details', 'https://www.in-parallel.ai/acme/action-items/1', '']) {
     assert.equal(respond({ hook_event_name: 'UserPromptSubmit', prompt: text }), null, text)

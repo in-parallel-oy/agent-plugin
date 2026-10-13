@@ -119,7 +119,8 @@ Work with no link, such as a local file, is described in the note.
 
 Your assistant reports only when it actually works on the item. Reading an
 item or answering your questions about it is not work on it, so nothing is
-reported, and it never finishes a To do it did not work on.
+reported, and it never finishes a To do it did not work on unless you ask it to
+report that.
 
 Your assistant never becomes the item's owner or assignee and never notifies
 anyone. Work that isn't about an item is not recorded.
@@ -134,7 +135,8 @@ why and moves the To do back to To do, never to Done or Cancelled unless you ask
 In Claude Code and Codex, the feature adds hooks that nudge your assistant to
 report. `scripts/reminders.js` reminds it:
 
-- when your message carries an In Parallel link, to report that it started;
+- when your message carries an In Parallel link, to report that it started if it
+  works on the item, and not when it only reads it or answers questions about it;
 - after it opens or prints a pull request while working on an item, to pass
   the pull request as the link to what it made.
 

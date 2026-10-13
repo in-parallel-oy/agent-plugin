@@ -13,7 +13,8 @@ without asking first.
 
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
-and do not report. Never finish a To do you did not work on.
+and do not report. Never finish a To do you did not work on
+unless the person asks you to report it.
 
 ## Report
 
@@ -41,7 +42,6 @@ the names of other workspaces, private links and internal discussions.
 Pass `item_id` instead of `link` when you have an id from an item tool; never
 both. When the work came from a Brief, also pass the Brief's link as `from`.
 An identical repeat report is not recorded twice, so retrying is safe.
-The plugin's hooks scope the stop reminder to this conversation.
 
 In a git checkout, `gh pr view --json url --jq .url` gives the branch's pull
 request. Pass only links you have seen; never guess one.
