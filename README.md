@@ -110,10 +110,12 @@ Parallel says people outside your company can read the item, your assistant
 writes its notes for them and leaves out internal details.
 
 When you ask your assistant to report work without naming an item, it works
-out the item itself: `report_back` without an item records nothing and returns
-your open To dos, best match first. Your assistant reports on the one that
-clearly matches and tells you which; if several could fit, it asks In Parallel
-to ask you (`ask: true`); if none fits, it offers to create a To do.
+out the item itself: it sends `report_back` a note saying what the work was,
+and In Parallel records nothing and returns your open To dos, each marked a
+strong or possible match for the note. Your assistant reports on the one clear
+match and tells you which; if several could fit, it asks In Parallel to ask you
+(`ask: true`); if none fits, it offers to create a To do. Work with no link,
+such as a local file, is described in the note.
 
 Your assistant never becomes the item's owner or assignee and never notifies
 anyone. Work that isn't about an item is not recorded.

@@ -15,7 +15,7 @@ Running this command is their go-ahead to report on the To do they pick.
    records nothing; its reply lists `choices`: up to ten of their open To
    dos. If they have none, say so and stop.
 2. **Let them pick.** If they named a To do when they ran the command, take
-   the matching choice, usually the one marked `best_match: true`. Otherwise call `report_back` again with
+   the choice marked `best_match: true`; if none is, ask as below. Otherwise call `report_back` again with
    `event: "started"` and `ask: true`: where the client supports it, In
    Parallel asks the person in place and starts the To do they pick; go on to
    step 4 with that To do, and ask the person which one it was if the reply
