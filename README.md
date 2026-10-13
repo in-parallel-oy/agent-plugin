@@ -112,8 +112,8 @@ writes its notes for them and leaves out internal details.
 When you ask your assistant to report work without naming an item, it works
 out the item itself: it sends `report_back` a note saying what the work was,
 and In Parallel records nothing and returns your open To dos, the ones that fit
-marked a strong or possible match for the note. Your assistant reports on a
-lone strong match and tells you which; if any other could fit, it asks In
+marked a strong or possible match for the note. Your assistant reports on the
+best match, a To do whose whole title the note covers, and tells you which; if any other could fit, it asks In
 Parallel to ask you (`ask: true`); if none fits, it offers to create a To do.
 Work with no link, such as a local file, is described in the note.
 

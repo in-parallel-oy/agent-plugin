@@ -53,11 +53,11 @@ release notes", and no `link` or `item_id`. Always send the note: without it
 the reply only asks you for one. The `event` is optional for this lookup. The
 call records nothing and asks no one; its reply lists their open To dos as
 `choices`; the ones that fit your note carry a `match` of `"strong"` or
-`"possible"`, and a lone strong match is also `best_match: true`. Do not make
-them name the item. Go by the matches:
+`"possible"`, and one whose whole title your note covers, ahead of the rest,
+is also `best_match: true`. Do not make them name the item. Go by the matches:
 
-- **Exactly one `strong` (the `best_match`):** report on its `id` with your
-  `event`, then tell them which item you used so they can correct it.
+- **A `best_match`:** report on its `id` with your `event`, then tell them
+  which item you used so they can correct it.
 - **Otherwise, any `strong` or `possible`:** call again with `ask: true` and
   your `event`, and follow its reply. Where it can, In Parallel asks them in
   place and records the one they pick.
