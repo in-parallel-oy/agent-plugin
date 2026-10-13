@@ -215,18 +215,26 @@ test('only the Development environment and localhost add experimental features, 
         continue
       }
       assert.equal(manifest.hooks, `./hooks/${agent.id}.json`)
-      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`])
+      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`, `${prefix}scripts/session.js`])
       const hooks = JSON.parse(dev.files[`${prefix}hooks/${agent.id}.json`]).hooks
-      // Only the main agent's Stop is hooked: no SubagentStop and no SessionStart.
-      assert.deepEqual(Object.keys(hooks), ['UserPromptSubmit', 'PostToolUse', 'Stop'])
       const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
+      // Only the main agent's Stop is hooked: no SubagentStop and no SessionStart.
+      // Claude Code also tags report_back with its session id; Codex names its thread itself.
+      assert.deepEqual(Object.keys(hooks), agent.id === 'claude'
+        ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] : ['UserPromptSubmit', 'PostToolUse', 'Stop'])
+      if (agent.id === 'claude') {
+        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), ['^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$'])
+        for (const hook of hooks.PreToolUse.flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/session.js"`)
+      }
       for (const event of ['UserPromptSubmit', 'PostToolUse']) {
         for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
       }
-      // The stop reminder asks In Parallel through the client's own connection, passing only stop_hook_active.
+      // The stop reminder asks In Parallel through the client's own connection, passing stop_hook_active
+      // and, from Claude Code, the conversation's session id.
       assert.deepEqual(hooks.Stop.flatMap(group => group.hooks), [{
         type: 'mcp_tool', server: agent.id === 'claude' ? 'plugin:in-parallel:in_parallel' : 'in_parallel',
-        tool: 'report_back_reminder', input: { stop_hook_active: '${stop_hook_active}' }, timeout: 10,
+        tool: 'report_back_reminder', timeout: 30,
+        input: agent.id === 'claude' ? { stop_hook_active: '${stop_hook_active}', client_session: '${session_id}' } : { stop_hook_active: '${stop_hook_active}' },
       }])
       assert.deepEqual(Object.keys(hooks.Stop[0]), ['hooks'])
     }

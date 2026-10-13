@@ -22,10 +22,11 @@ for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
       assert.equal(Boolean(files['skills/work-on/SKILL.md']), dev)
       assert.equal(Boolean(files[`hooks/${kind}.json`]), hooks)
       assert.equal(Boolean(files['scripts/reminders.js']), hooks)
+      assert.equal(Boolean(files['scripts/session.js']), hooks)
       assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
       assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
       for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, url)
-      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/(claude|codex)\.json$|scripts\/reminders\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
+      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/(claude|codex)\.json$|scripts\/(reminders|session)\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
       assert.equal(files['plugin.json'], undefined)
     }
   })
