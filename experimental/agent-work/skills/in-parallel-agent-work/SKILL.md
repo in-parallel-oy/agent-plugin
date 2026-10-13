@@ -52,21 +52,22 @@ When the person asks you to report back but names no item, first call
 release notes", and no `link` or `item_id`. Always send the note: without it
 the reply only asks you for one. The `event` is optional for this lookup. The
 call records nothing and asks no one; its reply lists their open To dos as
-`choices`, each with a `match` of `"strong"` or `"possible"` when it fits your
-note. Do not make them name the item:
+`choices`; the ones that fit your note carry a `match` of `"strong"` or
+`"possible"`, and a lone strong match is also `best_match: true`. Do not make
+them name the item. Go by the matches:
 
-- **One is `best_match: true`:** report on its `id` with your `event`, then
-  tell them which item you used so they can correct it.
-- **Several are strong or possible:** call again with `ask: true` and your
-  `event`. In Parallel asks them in place and reports on the one they pick.
-- **No strong match:** offer to create a To do for the work with
+- **Exactly one `strong` (the `best_match`):** report on its `id` with your
+  `event`, then tell them which item you used so they can correct it.
+- **Otherwise, any `strong` or `possible`:** call again with `ask: true` and
+  your `event`, and follow its reply. Where it can, In Parallel asks them in
+  place and records the one they pick.
+- **None marked:** offer to create a To do for the work with
   `create_action_item`, and report on it once they agree; never create one
-  without asking. If a possible match might be it, call with `ask: true`
-  instead.
+  without asking.
 
 Prefer `ask: true` to asking in the conversation. Ask in the conversation only
-when no question appears: list the choices once, then report on the one they
-name.
+when the reply says In Parallel could not ask, or no question appears: list
+the choices once, then report on the one they name.
 
 For local work with no link, such as a file on their machine, describe it in
 the `note`. `output_url` takes only http(s) links.
