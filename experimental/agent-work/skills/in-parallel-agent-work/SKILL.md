@@ -7,9 +7,10 @@ description: Reports your work back to In Parallel on the item you were sent. Us
 
 People send you items from In Parallel with Send to AI. The prompt carries the
 item's permanent link, `in-parallel://<company>/<type>/<id>`, and a line asking
-you to report back. Report against that link with `report_back`, so the person
-sees your work on the item they own. When you work on the item, report
-without asking first.
+you to report back. `<company>` names their company, not a host. Report against
+that link with `report_back`, so the person sees your work on the item they
+own. When you work on the item, report without asking first, unless the person
+asks you to check with them before reporting.
 
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
@@ -34,6 +35,12 @@ unless the person asks you to report it.
 5. **Put down.** When the person asks you to drop a To do, report
    `event: "note"` with a `note` saying why, then move it back to To do with
    `update_action_item`, never to Done or Cancelled unless they ask.
+6. **Pause.** When the person asks you to pause, report `event: "note"`
+   saying so. That answers the reminder to finish when you stop.
+
+When the person says they did the work themselves, one `event: "finished"`
+report is enough: no start or re-read, and `output_url` only if they gave a
+link.
 
 When an item read or a `report_back` reply says people outside the company can
 read the item, write your notes so they can read them too. Leave out internal details, such as
@@ -53,22 +60,23 @@ wiki tools is credited to you.
 ## Without a link
 
 When the person asks you to report back but names no item, first call
-`report_back` with a `note` saying what the work was, such as "Finished the
-release notes", and no `link` or `item_id`. Always send the note: without it
-the reply only asks you for one. The `event` is optional for this lookup. The
-call records nothing and asks no one; its reply lists their open To dos as
-`choices`; the ones that fit your note carry a `match` of `"strong"` or
-`"possible"`, and one whose whole title your note covers, ahead of the rest,
+`report_back` with a `note` of one short sentence naming the work, such as
+"Finished the release notes", not a list of what it contained, and no `link`
+or `item_id`. Always send the note: without it the reply only asks you for
+one. The `event` is optional for this lookup. The call records nothing and
+asks no one; its reply lists their open To dos as `choices`. Those that fit
+your note carry `match: "strong"`, and one whose whole title your note covers
 is also `best_match: true`. Do not make them name the item. Go by the matches:
 
 - **A `best_match`:** report on its `id` with your `event`, then tell them
   which item you used so they can correct it.
-- **Otherwise, any `strong` or `possible`:** call again with `ask: true` and
+- **A `strong` match but no `best_match`:** call again with `ask: true` and
   your `event`, and follow its reply. Where it can, In Parallel asks them in
   place and records the one they pick.
-- **None marked:** offer to create a To do for the work with
+- **No match:** offer to create a To do for the work with
   `create_action_item`, and report on it once they agree; never create one
-  without asking.
+  without asking. If one of the choices might still be it, call again with
+  `ask: true` instead.
 
 Prefer `ask: true` to asking in the conversation. Ask in the conversation only
 when the reply says In Parallel could not ask, or no question appears: list

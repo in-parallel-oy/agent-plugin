@@ -6,19 +6,21 @@ description: Reads team context and records findings in In Parallel. Use for wor
 # Working with In Parallel
 
 In Parallel holds a team’s plans, meetings, decisions and shared knowledge in
-workspaces. When the `in-parallel-agent-work` skill is installed, use it to report work on an item you were sent.
+workspaces. When the `in-parallel-agent-work` skill is installed, load it to
+report work on an item, or work the person did with no item named.
 
 ## Find context
 
 - For open-ended catch-ups, call `brief_me` across accessible workspaces. Narrow it when the user names a workspace.
 - For a specific question, call `search_knowledge` directly; it searches meetings, observations and plans together.
 - Use an existing record ID or In Parallel URL with its `get_*` tool; no workspace lookup is needed. The server checks the link’s environment.
-- Search before creating decisions, action items, risks, open questions, goals or wiki pages. Update an existing record that covers the subject: `update_*` for observations, `edit_wiki_page` for wiki pages.
+- When the person asks you to record a decision, action item, risk, open question, goal or wiki page, search first. If an existing record covers the subject, offer to update it instead: `update_*` for observations, `edit_wiki_page` for wiki pages.
 
 ## Record findings
 
-Use the user’s existing authorization for the workspace and action. If a write
-extends beyond it, show the proposed content and ask once before publishing.
+Never create or edit records, such as pages or items, the person did not ask
+for. Confirm each write with them before publishing, showing the proposed
+content; a `report_back` report is the one exception.
 
 `capture_to_workspace` accepts ordinary prose: what you found, where and why it
 matters. Let the server choose the record kind. Capture new findings, constraints,
