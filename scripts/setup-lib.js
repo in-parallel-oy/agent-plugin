@@ -17,7 +17,8 @@ const PRODUCTION = JSON.parse(fs.readFileSync(path.join(SOURCE, 'mcp.json'), 'ut
 // them; setup adds each experimental/<feature> folder for the Development environment only:
 // its skills, and its hooks/<agent>.json with its scripts where that client has hooks.
 const EXPERIMENTAL = ['agent-work']
-const DEVELOPMENT_HOSTS = ['www.in-parallel.dev', 'in-parallel.dev']
+// A local server runs the newest code, so it gets them too.
+const DEVELOPMENT_HOSTS = ['www.in-parallel.dev', 'in-parallel.dev', 'localhost', '127.0.0.1', '[::1]']
 // Receipts without an experimental list predate it and installed the retired work journal.
 const RETIRED = ['work-claims']
 const MARKETPLACE = 'in-parallel-setup'

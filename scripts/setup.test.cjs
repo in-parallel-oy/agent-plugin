@@ -76,12 +76,12 @@ for (const agent of setup.AGENTS) {
     const logs = []
     const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
     const remaining = journalCache(home)
-    setup.install(agent, 'http://localhost:54104/mcp', options)
+    setup.install(agent, 'https://in-parallel.example/mcp', options)
     assert.deepEqual(remaining(), ['keep.txt'])
     assert.ok(logs.some(line => /Removed the retired work journal cache/.test(line)))
     const root = setup.target(agent, home)
     const first = setup.managed(root, agent)
-    setup.install(agent, 'http://localhost:54104/mcp', options)
+    setup.install(agent, 'https://in-parallel.example/mcp', options)
     assert.deepEqual(setup.managed(root, agent), first)
     assert.equal(native.marketplaces.length, agent.command ? 1 : 0)
     journalCache(home)
@@ -94,7 +94,7 @@ for (const agent of setup.AGENTS) {
     for (const file of ['.mcp.json', 'mcp.json']) {
       const expected = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, file), 'utf8'))
       assert.deepEqual(Object.keys(expected.mcpServers), ['in_parallel'])
-      expected.mcpServers.in_parallel.url = 'http://localhost:54104/mcp'
+      expected.mcpServers.in_parallel.url = 'https://in-parallel.example/mcp'
       assert.deepEqual(JSON.parse(fs.readFileSync(path.join(plugin, file), 'utf8')), expected)
     }
     assert.equal(fs.existsSync(path.join(plugin, 'scripts')), false)
@@ -127,7 +127,7 @@ for (const agent of setup.AGENTS) {
     const custom = path.join(root, 'custom.txt')
     fs.writeFileSync(custom, 'keep this')
     const before = native.calls.length
-    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Installed files were changed/)
+    assert.throws(() => setup.install(agent, 'https://in-parallel.example/mcp', options), /Installed files were changed/)
     assert.throws(() => setup.uninstall(agent, options), /Installed files were changed/)
     assert.equal(fs.readFileSync(custom, 'utf8'), 'keep this')
     assert.equal(native.calls.length, before)
@@ -141,10 +141,10 @@ test('source and environment changes produce new cache versions without changing
   const agent = setup.AGENTS[1]
   const original = fs.readFileSync(path.join(source, 'mcp.json'), 'utf8')
   const prod = setup.bundle(agent, PRODUCTION, source)
-  const local = setup.bundle(agent, 'http://localhost:54104/mcp', source)
+  const local = setup.bundle(agent, 'https://in-parallel.example/mcp', source)
   assert.notEqual(prod.receipt.version, local.receipt.version)
   fs.appendFileSync(path.join(source, 'skills/in-parallel/SKILL.md'), '\nUpdated skill\n')
-  assert.notEqual(setup.bundle(agent, 'http://localhost:54104/mcp', source).receipt.version, local.receipt.version)
+  assert.notEqual(setup.bundle(agent, 'https://in-parallel.example/mcp', source).receipt.version, local.receipt.version)
   assert.equal(fs.readFileSync(path.join(source, 'mcp.json'), 'utf8'), original)
 })
 
@@ -192,17 +192,17 @@ test('unmanaged directories and symlinks are never replaced', t => {
 })
 
 
-test('only the Development environment adds experimental features, and reminder hooks only for Claude Code and Codex', () => {
+test('only the Development environment and localhost add experimental features, and reminder hooks only for Claude Code and Codex', () => {
   for (const agent of setup.AGENTS) {
     const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
-    for (const url of [PRODUCTION, 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp',
+    for (const url of [PRODUCTION, 'https://in-parallel.example/mcp',
       'https://staging.in-parallel.dev/mcp', 'https://www.in-parallel.dev.example.com/mcp']) {
       const stable = setup.bundle(agent, url)
       assert.deepEqual(stable.receipt.experimental, [], url)
       assert.ok(!Object.keys(stable.files).some(name => /in-parallel-agent-work|work-on|(^|\/)(hooks|scripts)\//.test(name)), url)
       assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
     }
-    for (const url of ['https://www.in-parallel.dev/mcp', 'https://in-parallel.dev/mcp']) {
+    for (const url of ['https://www.in-parallel.dev/mcp', 'https://in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp']) {
       const dev = setup.bundle(agent, url)
       assert.deepEqual(dev.receipt.experimental, ['agent-work'])
       for (const skill of ['in-parallel', 'in-parallel-agent-work', 'work-on']) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
@@ -239,7 +239,7 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
   const logs = []
   const options = { home, cwd: home, env: {}, log: message => logs.push(message) }
   const file = path.join(setup.target(agent, home), setup.RECEIPT)
-  for (const url of ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp']) {
+  for (const url of ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp']) {
     setup.install(agent, url, options)
     const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
     for (const experimental of [['work-claims'], undefined]) {
@@ -249,7 +249,7 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
     setup.install(agent, url, options)
     logs.length = 0
     setup.doctor(agent, options)
-    const dev = url.startsWith('https:')
+    const dev = !url.includes('.example')
     assert.equal(/Experimental: agent-work/.test(logs.join('\n')), dev)
     assert.equal(/Send to AI/.test(logs.join('\n')), dev)
   }

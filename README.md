@@ -67,7 +67,7 @@ see, read or store a password or token.
 two setup dependencies. It copies the plugin to `~/.in-parallel/setup/` for
 Claude Code and Codex, or `~/.cursor/plugins/local/in-parallel` for Cursor, and
 registers it with the `claude` or `codex` command. It writes your chosen server
-URL into that copy. For the Development environment, it also adds the
+URL into that copy. For the Development environment or a server on localhost, it also adds the
 [experimental features](#experimental-features).
 
 Before it installs, it reads your existing MCP settings to find a conflicting
@@ -94,7 +94,7 @@ asks you to run setup again if the work journal is still installed.
 Features the In Parallel server has not yet enabled for every team live in
 `experimental/`. Plugin browsers never install them. The setup command adds them
 only when you choose the Development environment
-(`https://www.in-parallel.dev/mcp`), never for Production, localhost or another
+(`https://www.in-parallel.dev/mcp`) or a server on localhost, never for Production or another
 server.
 
 ### Reporting work back (`experimental/agent-work`)

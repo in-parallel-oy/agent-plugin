@@ -82,8 +82,8 @@ test('non-loopback URLs, bad variable names, other agents and foreign directorie
   assert.ok(fs.existsSync(path.join(own, '.agents/plugins/marketplace.json')))
 })
 
-test('setup still adds experimental features for the Development host only, and the tool is not shipped', () => {
-  for (const agent of setup.AGENTS) assert.deepEqual(setup.bundle(agent, ENDPOINT).receipt.experimental, [])
+test('setup still adds experimental features for the Development host and localhost only, and the tool is not shipped', () => {
+  for (const agent of setup.AGENTS) assert.deepEqual(setup.bundle(agent, 'https://in-parallel.example/mcp').receipt.experimental, [])
   const [{ files }] = JSON.parse(
     execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: setup.SOURCE, encoding: 'utf8' })
   )
