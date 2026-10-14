@@ -8,27 +8,27 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
+const { execFileSync } = require('node:child_process')
 
 const source = path.resolve(__dirname, '..')
 const RECORD = path.join(__dirname, 'plugin-content.json')
-// Everything a client installs: skills, hooks and their scripts, connection and manifests.
-const CONTENT = ['skills', 'experimental', 'assets', 'mcp.json', '.mcp.json', 'plugin.json',
-  '.claude-plugin', '.codex-plugin', '.cursor-plugin', '.agents', 'LICENSE', 'NOTICE']
+// Everything a client installs is what the package ships, less the setup tool
+// (scripts/*.js) and the README: skills, hooks and their scripts, connection and manifests.
+const CONTENT = require('../package.json').files.filter(entry => !entry.startsWith('scripts/') && !entry.startsWith('!') && entry !== 'README.md')
 const VERSIONED = ['package.json', 'plugin.json', '.claude-plugin/plugin.json', '.codex-plugin/plugin.json', '.cursor-plugin/plugin.json']
 
-function files(name) {
-  const file = path.join(source, name)
-  return fs.statSync(file).isDirectory()
-    ? fs.readdirSync(file).sort().flatMap(entry => files(path.join(name, entry)))
-    : [name]
+// Tracked and new files only: git-ignored noise such as .DS_Store is not content.
+function files() {
+  return execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...CONTENT], { cwd: source, encoding: 'utf8' })
+    .split('\0').filter(Boolean).sort()
 }
 
 function contentDigest() {
   const hash = crypto.createHash('sha256')
-  for (const name of CONTENT.flatMap(files)) {
+  for (const name of files()) {
     // The version itself is not content.
     const content = fs.readFileSync(path.join(source, name), 'utf8').replace(/"version":\s*"[^"]*"/g, '"version": ""')
-    hash.update(`${name.split(path.sep).join('/')}\0${content}\0`)
+    hash.update(`${name}\0${content}\0`)
   }
   return hash.digest('hex')
 }

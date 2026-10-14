@@ -30,8 +30,8 @@ owner should know about, not a progress log.
 1. **Start.** Call `report_back` with the `link` and `event: "started"` when
    you begin. A To do moves to Doing. When the reply lists `others_working`,
    other people or agents have started it too: tell the person and coordinate
-   rather than duplicate their work. When its `owner` notice says the item
-   belongs to someone else, never finish their To do without asking the person.
+   rather than duplicate their work. When the reply has an `owner_notice`, the
+   item belongs to someone else: never finish it without asking the person.
 2. **Note.** Report what you did or found with `event: "note"` and a `note` of
    one to three plain sentences for the item's owner. Report turning points,
    not every step.
