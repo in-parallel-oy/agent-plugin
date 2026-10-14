@@ -66,22 +66,22 @@ why you are stopping without reporting.
    `event: "note"` with a `note` saying why, then move it back to To do with
    `update_action_item`, never to Done or Cancelled unless they ask. When
    others still work on it, drop only your part instead: finish with
-   `close: false`, which ends your part and leaves the To do open for them.
+   `close: false` as in Finish.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
 7. **Wait.** When you stop to wait for the person, such as for an approval
    or an answer, report `event: "note"` with `waiting: true` and a `note`
    saying what you wait for. That answers the stop reminder for the item.
-   Waiting does not override a handover. When you come back to the item,
-   read it again: when its `since_you_last_checked` shows a new owner, or a
-   stop reminder says it is now someone else's and the person you act for no
-   longer owns it, tell the person, release your start with
-   `event: "released"` and stop reporting on it.
+   Waiting does not override a handover: when you come back to the item,
+   read it again and Release on a handover.
 8. **Release.** To drop your start without claiming any work, report
-   `event: "released"`: after a handover, after "start this and tell me your
-   plan" when no work follows, or when the person stops you without asking
-   to pause the item or drop it back to To do. The status does not change,
+   `event: "released"` and stop reporting on the item: after a handover,
+   after "start this and tell me your plan" when no work follows, or when the
+   person stops you without asking to pause the item or drop it back to To
+   do. A handover is when the item's `since_you_last_checked` shows a new
+   owner, or a stop reminder says it is now someone else's and the person you
+   act for no longer owns it: tell the person. The status does not change,
    so a To do you started stays in Doing, and it answers the stop reminder
    for the item. When the person asks to pause or to drop the item, use
    Pause or Put down instead.

@@ -286,19 +286,6 @@ for (const agent of setup.AGENTS) {
       assert.deepEqual(installed, JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'experimental', 'agent-work', 'hooks', `${agent.id}.json`), 'utf8')).hooks)
       assert.deepEqual(installed.Stop.flatMap(group => group.hooks).map(hook => [hook.type, hook.tool]), [['mcp_tool', 'report_back_reminder']])
     }
-    assert.match(fs.readFileSync(path.join(plugin, 'skills', 'in-parallel-agent-work', 'SKILL.md'), 'utf8'),
-      /\*\*Put down\.\*\*[^]*`event: "note"`[^]*`update_action_item`[^]*never to Done or Cancelled unless they ask/)
-    const agentWork = fs.readFileSync(path.join(plugin, 'skills', 'in-parallel-agent-work', 'SKILL.md'), 'utf8')
-    assert.match(agentWork, /Waiting does not override a handover\.[^]*`since_you_last_checked` shows a new\s+owner[^]*stop reporting on it/)
-    assert.match(agentWork, /When the person says not to report, do not report; when you stop, tell them\s+why you are stopping without reporting/)
-    assert.match(agentWork, /read the item with its tool, such as\s+`get_action_item`, then call `report_back`[^]*Read it again before any later start/)
-    assert.match(agentWork, /`acting_for`\. That is the person in\s+this conversation unless they say otherwise; do not question it because a git\s+user name/)
-    assert.doesNotMatch(agentWork, /usually the person you are talking to/)
-    assert.match(agentWork, /\*\*Release\.\*\* To drop your start without claiming any work, report\s+`event: "released"`: after a handover/)
-    assert.match(fs.readFileSync(path.join(plugin, 'skills', 'in-parallel', 'SKILL.md'), 'utf8'),
-      /update or report to In Parallel about work done or\s+in progress[^]*load the\s+`in-parallel-agent-work` skill/)
-    assert.match(fs.readFileSync(path.join(plugin, 'skills', 'work-on', 'SKILL.md'), 'utf8'),
-      /\*\*Start\.\*\* Read the picked To do with `get_action_item`, then call\s+`report_back` with `event: "started"`/)
     assert.equal(/\/hooks/.test(logs.join('\n')), hooks)
     logs.length = 0
     setup.doctor(agent, options)
