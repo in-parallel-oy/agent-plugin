@@ -83,8 +83,12 @@ and the current directory, and each client's plugin registrations) as found,
 not found or conflicting, before it reports any error. For Claude Code it lists
 each In Parallel copy with its scope, the project it belongs to and its files,
 such as the setup copy for your user and one installed in another project. A
-conflicting entry says what it conflicts with and why, and changed installed
-files are named. It checks what is installed, not that it works: to check that,
+conflicting entry says what it conflicts with and why, and a legacy entry named
+`in-parallel` comes with how to fix it. Changed installed files are named; when
+an installed `.mcp.json` gained an `Authorization` header, `doctor` says a
+credential header was added without printing it. It always shows the endpoint
+setup installed, even when a check fails. A project copy setup did not install
+is named with the command that removes it, or can be left in place. It checks what is installed, not that it works: to check that,
 ask your agent "Check my In Parallel connection". When the previous `doctor`
 run failed, it shows that error and when.
 
@@ -129,7 +133,10 @@ label, such as the pull request. Starting moves a To do to Doing and finishing
 moves it to Done. When its part is done but the To do is not, such as when
 others still work on it, it finishes with `close: false`: that ends its part
 and leaves the To do open. Before finishing, your assistant
-reads the item again to see what people changed while it worked. When In
+reads the item again to see what people changed while it worked. When the work
+looks incomplete, such as a TODO left or a step not done, it asks you before
+finishing, or finishes only its part with `close: false` and says what remains.
+In Parallel's replies name you, the person it acts for, in `acting_for`. When In
 Parallel says people outside your company can read the item, your assistant
 writes its notes for them and leaves out internal details.
 
@@ -147,7 +154,9 @@ item or answering your questions about it is not work on it, so nothing is
 reported, and it never finishes a To do it did not work on unless you ask it to
 report that. If you ask it to check with you before reporting, it does. If you
 ask it to pause, it reports a note saying so and leaves the item in Doing; if
-it is reminded to finish when it stops, it tells you the work is paused.
+it is reminded to finish when it stops, it tells you the work is paused. When
+it stops to wait for you, such as for an approval or an answer, it reports a
+note marked `waiting: true`; the item then shows it waiting on you.
 
 The general `in-parallel` skill never creates or edits pages or items you did
 not ask for, and confirms each write with you except a `report_back` report.
@@ -194,6 +203,8 @@ Parallel answers from the reports it recorded:
 - It reminds once per start: at the first stop after your assistant reports
   starting an item, which may come before the work is done. Your assistant can
   still stop by saying why the work isn't finished.
+- An item your assistant reported it is waiting on you for (a note with
+  `waiting: true`) is not reminded about.
 - Notes never bring the reminder back. Only reporting the item started again
   does, until it is finished.
 - It never reminds at the stop right after a reminder.

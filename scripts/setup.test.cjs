@@ -1010,7 +1010,7 @@ test('setup names the project-scope copy it found and the one command that remov
   const native = host(agent, home)
   native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: '/work/app' }]
   assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} }),
-    { message: 'Found in-parallel@team installed at project scope for /work/app. Setup changes only your user installation and leaves it in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project' })
+    { message: 'Found in-parallel@team installed at project scope for /work/app. Setup did not install it and changes only your user installation and leaves it in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project' })
   assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team'])
   assert.equal(fs.existsSync(setup.target(agent, home)), false)
 })
@@ -1147,4 +1147,64 @@ test('Cursor doctor says what a conflicting MCP entry conflicts with and why', t
     })
     assert.ok(logs.join('\n').includes(`${file} (user scope): conflicting: ${reason}`), logs.join('\n'))
   }
+})
+
+test('doctor prints the setup endpoint when a check fails and says a credential header was added without printing it', t => {
+  const home = fixture(t)
+  for (const agent of setup.AGENTS) {
+    const native = host(agent, home)
+    const logs = []
+    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+    setup.install(agent, PRODUCTION, { ...options, log() {} })
+    const root = setup.target(agent, home)
+    const name = Object.keys(setup.managed(root, agent).files).find(file => path.basename(file) === '.mcp.json')
+    const config = JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'))
+    config.mcpServers.in_parallel.headers = { authorization: 'Bearer do-not-print' }
+    fs.writeFileSync(path.join(root, name), JSON.stringify(config))
+    assert.throws(() => setup.doctor(agent, options), error => {
+      assert.ok(error.message.includes(`A credential header (Authorization) was added to ${name}; its value is not printed.`), error.message)
+      assert.doesNotMatch(error.message, /do-not-print/)
+      return true
+    })
+    const report = logs.join('\n')
+    assert.ok(report.includes(`  Setup-managed MCP endpoint: ${PRODUCTION}\n`), report)
+    assert.doesNotMatch(report, /do-not-print/)
+  }
+})
+
+test('a changed MCP config without an Authorization header names no credential', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS.find(item => item.id === 'cursor')
+  setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, log() {} })
+  const root = setup.target(agent, home)
+  fs.appendFileSync(path.join(root, 'mcp.json'), ' ')
+  assert.throws(() => setup.doctor(agent, { home, cwd: home, env: {}, log() {} }), error =>
+    error.message.includes('changed: mcp.json') && !/credential/.test(error.message))
+})
+
+for (const agent of setup.AGENTS.filter(item => item.id !== 'codex')) {
+  test(`${agent.name}: doctor prints the fix for a legacy in-parallel entry`, t => {
+    const home = fixture(t)
+    const native = host(agent, home)
+    const logs = []
+    const file = agent.id === 'claude' ? path.join(home, '.claude.json') : path.join(home, '.cursor', 'mcp.json')
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, JSON.stringify({ mcpServers: { 'in-parallel': { url: PRODUCTION } } }))
+    setup.doctor(agent, { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) })
+    const report = logs.join('\n')
+    assert.ok(report.includes(`${file} (user scope): conflicting: a legacy entry named in-parallel\n    Legacy In Parallel MCP entry named in-parallel in ${file} (user scope). Rename it to in_parallel`), report)
+  })
+}
+
+test('Claude doctor without a setup install says a project copy was not installed by setup and how to remove it', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: '/work/app' }]
+  const logs = []
+  setup.doctor(agent, { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) })
+  const report = logs.join('\n')
+  assert.ok(report.includes('  Found in-parallel@team installed at project scope for /work/app. Setup did not install it and does not need it removed; it can be left in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project'), report)
+  assert.doesNotMatch(report, /Setup-managed MCP endpoint/)
+  assert.match(report, /no setup-managed installation/)
 })

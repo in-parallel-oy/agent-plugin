@@ -121,9 +121,19 @@ function managed(root, agent) {
     const names = list => list.slice(0, 10).join(', ') + (list.length > 10 ? ` and ${list.length - 10} more` : '')
     const list = [['changed', changed], ['added', added], ['missing', missing]]
       .filter(([, names]) => names.length).map(([kind, files]) => `${kind}: ${names(files)}`).join('; ')
-    throw new Error(`Installed files were changed in ${root} (${list}). Preserve your changes before updating or removing this copy.`)
+    throw new Error(`Installed files were changed in ${root} (${list}).${credentials(root, changed)} Preserve your changes before updating or removing this copy.`)
   }
   return receipt
+}
+
+// A changed MCP config that gained an Authorization header holds a credential: say so, never print it.
+function credentials(root, changed) {
+  const authorized = value => value && typeof value === 'object' &&
+    Object.entries(value).some(([key, inner]) => /^authorization$/i.test(key) || authorized(inner))
+  const files = changed.filter(name => ['.mcp.json', 'mcp.json'].includes(path.basename(name))).filter(name => {
+    try { return authorized(JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'))) } catch { return false }
+  })
+  return files.length ? ` A credential header (Authorization) was added to ${files.join(', ')}; its value is not printed.` : ''
 }
 
 // The receipt as written, without checking the files: what doctor still lists against
@@ -229,10 +239,12 @@ function inventory(agent, execute = run) {
 
 // Setup acts on the user scope only. A copy at project or local scope belongs to
 // that project: report it with the one command that removes it, never touch it.
-function projectScope(plugin, cwd) {
+// conflict: false when no setup-managed copy competes with it, so it can stay.
+function projectScope(plugin, cwd, conflict = true) {
   const scope = plugin.scope || 'project'
   const dir = plugin.projectPath || cwd
-  return `Found ${pluginId(plugin)} installed at ${scope} scope for ${dir}. Setup changes only your user installation and leaves it in place. To remove it, run: cd ${JSON.stringify(dir)} && claude plugin uninstall ${pluginId(plugin)} --scope ${scope}`
+  const keep = conflict ? 'changes only your user installation and leaves it in place' : 'does not need it removed; it can be left in place'
+  return `Found ${pluginId(plugin)} installed at ${scope} scope for ${dir}. Setup did not install it and ${keep}. To remove it, run: cd ${JSON.stringify(dir)} && claude plugin uninstall ${pluginId(plugin)} --scope ${scope}`
 }
 
 // The client's In Parallel copies and the setup marketplace, from its own inventory.
@@ -339,7 +351,7 @@ function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), en
   const check = (config, location) => {
     if (config === UNREADABLE) return { location, status: 'unreadable' }
     const servers = config?.mcpServers || {}
-    if ('in-parallel' in servers) return { location, status: 'conflicting: a legacy entry named in-parallel', message: `Legacy In Parallel MCP entry named in-parallel in ${location}. Rename it to in_parallel or remove it to use the plugin-provided connection, then rerun setup. Existing settings were preserved.` }
+    if ('in-parallel' in servers) return { location, status: 'conflicting: a legacy entry named in-parallel', fix: true, message: `Legacy In Parallel MCP entry named in-parallel in ${location}. Rename it to in_parallel or remove it to use the plugin-provided connection, then rerun setup. Existing settings were preserved.` }
     const server = servers.in_parallel
     if (!server) return { location, status: 'not found' }
     const reason = url ? mismatch(agent, server, url, env) : null
@@ -504,7 +516,7 @@ function uninstall(agent, { home = os.homedir(), cwd, execute = run, dryRun = fa
   if (!dryRun) removeJournalCache(home, log)
   const kept = state.foreign.filter(plugin => !(state.receipt && pluginId(plugin) === PLUGIN && plugin.scope === 'user'))
     .map(plugin => agent.id === 'claude' && plugin.scope !== 'user'
-      ? `${agent.name}: kept ${pluginId(plugin)}. ${projectScope(plugin, cwd || process.cwd())}`
+      ? `${agent.name}: kept ${pluginId(plugin)}. ${projectScope(plugin, cwd || process.cwd(), false)}`
       : `${agent.name}: kept ${pluginId(plugin)}; setup did not install it.`)
   if (!state.receipt) { log([`${agent.name}: no setup-managed installation.`, ...kept].join('\n')); return }
   const names = [...Object.keys(state.receipt.files), RECEIPT]
@@ -594,7 +606,12 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
     try { state = survey(agent, root, execute, receipt) } catch (error) { if (receipt) failure ||= error }
   }
   const locations = [...registrationLocations(agent, root, state, cwd), ...mcpLocations(agent, receipt?.endpoint, { home, cwd, env, source, report: true })]
-  log(`${agent.name}: checked\n${locations.map(({ location, status }) => `  ${location}: ${status}`).join('\n')}`)
+  // Without a setup-managed copy, a project copy is reported here; with one, it is an error below.
+  const notes = !receipt && agent.id === 'claude' && state
+    ? state.existing.filter(plugin => plugin.scope && plugin.scope !== 'user').map(plugin => projectScope(plugin, cwd, false)) : []
+  log([`${agent.name}: checked`, ...(receipt ? [`  Setup-managed MCP endpoint: ${receipt.endpoint}`] : []),
+    ...locations.flatMap(({ location, status, fix, message }) => [`  ${location}: ${status}`, ...(fix ? [`    ${message}`] : [])]),
+    ...notes.map(note => `  ${note}`)].join('\n'))
   if (failure) throw failure
   const lastFailure = previous ? `\nLast failed check: ${previous.at}: ${previous.error}` : ''
   if (!receipt) { log(`${agent.name}: no setup-managed installation.${lastFailure}`); return }

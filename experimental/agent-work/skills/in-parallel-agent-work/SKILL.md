@@ -25,8 +25,8 @@ Report state changes, not activity: started, finished, and finished with
 `close: false` when only your part is done. A note is for a turning point the
 owner should know about, not a progress log.
 
-In replies, In Parallel calls the person you act for "the person you act
-for", not by name.
+Replies name the person you act for in `acting_for`; where a reply says "the
+person you act for", it means them.
 
 ## Report
 
@@ -51,7 +51,10 @@ for", not by name.
    decision's status does not change; report on each To do in the reply's
    `linked_action_items` by its id. When your part is done but the To do is
    not, such as when others still work on it, finish with `close: false`: that
-   ends your part, records your work and leaves the To do open.
+   ends your part, records your work and leaves the To do open. When the work
+   looks incomplete, such as a TODO left or a step not done, ask the person
+   before finishing, or finish only your part with `close: false` and say in
+   a note what remains.
 5. **Put down.** When the person asks you to drop a To do, report
    `event: "note"` with a `note` saying why, then move it back to To do with
    `update_action_item`, never to Done or Cancelled unless they ask. When
@@ -60,6 +63,9 @@ for", not by name.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
+7. **Wait.** When you stop to wait for the person, such as for an approval
+   or an answer, report `event: "note"` with `waiting: true` and a `note`
+   saying what you wait for. That answers the stop reminder for the item.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
