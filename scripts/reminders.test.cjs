@@ -8,7 +8,7 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
 const SCRIPT = path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js')
-const { respond, scan } = require(SCRIPT)
+const { respond, scan, REPORT_BACK } = require(SCRIPT)
 const LINK = 'in-parallel://acme/action_item/0a1b2c3d-1111-2222-3333-444455556666'
 const PR = 'https://github.com/acme/website/pull/42'
 const SERVER_TOOL = 'mcp__plugin_in-parallel_in_parallel__report_back'
@@ -164,6 +164,40 @@ test('the item in play follows the latest item and ignores links the person did 
   assert.equal(inPlay(path.join(os.tmpdir(), 'in-parallel-missing-transcript.jsonl')), false)
 })
 
+const ARGS = { link: LINK, event: 'started', note: 'Fixing the Safari login' }
+const preToolUse = (extra = {}) => ({ hook_event_name: 'PreToolUse', session_id: 'session-1', tool_name: SERVER_TOOL, tool_input: ARGS, ...extra })
+
+test('report_back gets the session id as client_session, with every other argument kept', () => {
+  const { stdout, status } = spawnSync(process.execPath, [SCRIPT], { input: JSON.stringify(preToolUse()), encoding: 'utf8', env: { PATH: process.env.PATH } })
+  assert.equal(status, 0)
+  const { hookSpecificOutput } = JSON.parse(stdout)
+  assert.deepEqual(hookSpecificOutput, { hookEventName: 'PreToolUse', updatedInput: { ...ARGS, client_session: 'session-1' } })
+  // Permission is left to the person's normal rules.
+  assert.equal('permissionDecision' in hookSpecificOutput, false)
+  // The session id replaces a client_session the model wrote.
+  assert.equal(respond(preToolUse({ tool_input: { ...ARGS, client_session: 'made-up' } })).hookSpecificOutput.updatedInput.client_session, 'session-1')
+})
+
+test('only In Parallel report_back calls are tagged or counted as reports', t => {
+  for (const name of [SERVER_TOOL, 'mcp__in_parallel__report_back', 'mcp__in-parallel__report_back']) assert.ok(respond(preToolUse({ tool_name: name })), name)
+  for (const name of ['mcp__plugin_in-parallel_in_parallel__report_back_reminder', 'mcp__plugin_in-parallel_in_parallel__get_action_item',
+    'mcp__other__report_back', 'Bash']) assert.equal(respond(preToolUse({ tool_name: name })), null, name)
+  // The transcript scan agrees: another server's report_back is not a report.
+  assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__other__report_back', { item_id: '0a1b2c3d', event: 'started' })])), false)
+  const other = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__other__report_back({ item_id: "0a1b2c3d", event: "started" })` } }
+  assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), other])), false)
+  // The hook's matcher is the same pattern.
+  const [group] = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'claude.json'), 'utf8')).hooks.PreToolUse
+  assert.equal(group.matcher, REPORT_BACK.source)
+})
+
+test('report_back without a session id or arguments is left as sent', () => {
+  assert.equal(respond(preToolUse({ session_id: '' })), null)
+  assert.equal(respond(preToolUse({ session_id: undefined })), null)
+  assert.equal(respond(preToolUse({ tool_input: null })), null)
+  assert.equal(respond(preToolUse({ tool_input: ['a'] })), null)
+})
+
 // Records every path the hook opens and module it loads, and any credential-like
 // environment variable it looks up.
 const PRELOAD = `
@@ -198,6 +232,7 @@ test('the hook reads only its input and the transcript, loads only fs, and never
   for (const input of [
     { hook_event_name: 'PostToolUse', transcript_path: file, tool_name: 'Bash', tool_input: { command: 'gh pr create' }, tool_response: { stdout: PR } },
     { hook_event_name: 'UserPromptSubmit', transcript_path: file, prompt: SEND },
+    preToolUse({ transcript_path: file }),
   ]) {
     const { status, stdout, seen } = runHook(t, input)
     assert.equal(status, 0)
@@ -205,7 +240,7 @@ test('the hook reads only its input and the transcript, loads only fs, and never
     const opened = seen.paths.map(([, target]) => target)
     // Node reads the script itself; the hook reads stdin (0) and the transcript.
     assert.ok(opened.every(target => [0, file, SCRIPT].includes(target)), JSON.stringify(seen.paths))
-    assert.equal(opened.includes(file), input.hook_event_name !== 'UserPromptSubmit')
+    assert.equal(opened.includes(file), input.hook_event_name === 'PostToolUse')
     assert.deepEqual([...new Set(seen.modules)].filter(name => name !== SCRIPT && !name.startsWith('internal/')), ['node:fs'])
     assert.deepEqual(seen.env.filter(key => /TOKEN|KEY|SECRET|PASS|AUTH|CRED|HOME|CONFIG/i.test(key)), [])
   }

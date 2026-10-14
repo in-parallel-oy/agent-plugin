@@ -6,6 +6,11 @@
 // Stop hook asks In Parallel's report_back_reminder tool through the client's
 // own connection.
 //
+// Before Claude Code calls In Parallel's report_back, it adds this conversation's
+// session id as client_session, so In Parallel scopes the stop reminder to the
+// conversation that reported, as the Stop hook does with the same id. Every other
+// argument is kept as sent, and permission is left to the person's normal rules.
+//
 // Reads only the hook input on stdin and, after a pull request, the local
 // session transcript it names.
 // Never reads credentials or settings, never connects to anything, never writes
@@ -16,8 +21,11 @@ const fs = require('node:fs')
 const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
+// In Parallel's report_back: from the plugin's server, an In Parallel server
+// configured on its own, or named bare by a Codex MCP item.
+const REPORT_BACK = /^(mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__)?report_back$/
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
-const CODE_CALL = /report_back\s*\(/g
+const CODE_CALL = new RegExp(`(?<![\\w-])${REPORT_BACK.source.slice(1, -1)}\\s*\\(`, 'g')
 const CODE_EVENT = /\bevent\b["'\s:]{0,8}(started|note|finished|released)\b/
 // A report names its item with a link or an id; one without records nothing.
 const NAMES_ITEM = /\b(link|item_id)\b["'\s]{0,4}:/
@@ -109,7 +117,7 @@ function reportCalls(node, found = [], depth = 0) {
     return found
   }
   const name = typeof node.name === 'string' ? node.name : typeof node.tool === 'string' ? node.tool : ''
-  if (/(^|[_.:/])report_back$/.test(name)) {
+  if (REPORT_BACK.test(name)) {
     const args = parseArgs(node.input) || parseArgs(node.arguments) || {}
     found.push({ event: args.event, item: Boolean(args.link || args.item_id), urls: resultUrls(args.results) })
   } else if (node.type === 'custom_tool_call' && typeof node.input === 'string') {
@@ -158,9 +166,18 @@ function context(event, text) {
   return { hookSpecificOutput: { hookEventName: event, additionalContext: text } }
 }
 
+function tagSession(input) {
+  if (typeof input.tool_name !== 'string' || !REPORT_BACK.test(input.tool_name)) return null
+  const args = input.tool_input
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return null
+  if (typeof input.session_id !== 'string' || !input.session_id) return null
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...args, client_session: input.session_id } } }
+}
+
 function respond(input) {
   if (!input || typeof input !== 'object') return null
   const event = input.hook_event_name
+  if (event === 'PreToolUse') return tagSession(input)
   if (event === 'UserPromptSubmit') {
     const links = [...new Set(String(input.prompt || '').match(LINK) || [])].slice(0, 3)
     if (!links.length) return null
@@ -191,4 +208,4 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { respond, scan }
+module.exports = { respond, scan, REPORT_BACK }

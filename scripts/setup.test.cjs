@@ -215,7 +215,7 @@ test('only the Development environment and localhost add experimental features, 
         continue
       }
       assert.equal(manifest.hooks, `./hooks/${agent.id}.json`)
-      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`, `${prefix}scripts/session.js`])
+      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`])
       const hooks = JSON.parse(dev.files[`${prefix}hooks/${agent.id}.json`]).hooks
       const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
       // Only the main agent's Stop is hooked: no SubagentStop and no SessionStart.
@@ -223,10 +223,9 @@ test('only the Development environment and localhost add experimental features, 
       assert.deepEqual(Object.keys(hooks), agent.id === 'claude'
         ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] : ['UserPromptSubmit', 'PostToolUse', 'Stop'])
       if (agent.id === 'claude') {
-        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), ['^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$'])
-        for (const hook of hooks.PreToolUse.flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/session.js"`)
+        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), ['^(mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__)?report_back$'])
       }
-      for (const event of ['UserPromptSubmit', 'PostToolUse']) {
+      for (const event of agent.id === 'claude' ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'] : ['UserPromptSubmit', 'PostToolUse']) {
         for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
       }
       // The stop reminder asks In Parallel through the client's own connection, passing stop_hook_active

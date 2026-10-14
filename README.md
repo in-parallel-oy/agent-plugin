@@ -197,7 +197,7 @@ Before your assistant stops, its `Stop` hook asks In Parallel's
 connection, whether it has an item it reported started and not yet finished.
 The plugin's hooks scope reminders to the conversation. In Claude Code, the
 `Stop` hook sends whether this stop already follows a reminder and the
-conversation's session id, and a `PreToolUse` hook (`scripts/session.js`) adds
+conversation's session id, and a `PreToolUse` hook (`scripts/reminders.js`) adds
 the same id as `client_session` to each `report_back` call, so only the
 conversation that reported an item started is reminded about it. Neither reads
 a transcript, sign-in or setting. Codex names its conversation thread itself,
