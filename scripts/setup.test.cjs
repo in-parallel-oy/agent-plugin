@@ -990,6 +990,7 @@ test('Codex doctor reads single-quoted URLs and reports other config.toml forms 
   for (const [content, status] of [
     [`[mcp_servers.in_parallel]\nurl = '${PRODUCTION}'\n`, 'found'],
     [`[mcp_servers.'in_parallel']\nurl = 'https://elsewhere.test/mcp'\n`, 'conflicting: it points to a different server than the one setup installed'],
+    [`[mcp_servers.in_parallel]\nurl = "${PRODUCTION}?token=secret"\n`, 'conflicting: its URL is empty or not a plain HTTPS MCP URL (it has credentials, query parameters or a fragment), so setup cannot verify it'],
     ['[mcp_servers.in_parallel]\nurl = """\nhttps://elsewhere.test/mcp"""\n', 'present (not parsed)'],
     [`[mcp_servers]\nin_parallel.url = "${PRODUCTION}"\n`, 'present (not parsed)'],
     [`[mcp_servers]\nin_parallel = { url = "${PRODUCTION}" }\n`, 'present (not parsed)'],
@@ -1078,7 +1079,7 @@ test('Claude doctor reports a project-scope copy beside the user install as conf
   assert.ok(logs.join('\n').includes(`Claude Code plugin registration (project scope for ${home}): conflicting: in-parallel@team`))
 })
 
-test('doctor lists every location before a changed-files error and names the changed files', t => {
+test('doctor lists every location before a changed-files error and names the changed, added and missing files', t => {
   const home = fixture(t)
   for (const agent of setup.AGENTS) {
     const native = host(agent, home)
@@ -1086,11 +1087,16 @@ test('doctor lists every location before a changed-files error and names the cha
     const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
     setup.install(agent, PRODUCTION, { ...options, log() {} })
     const root = setup.target(agent, home)
-    const skill = Object.keys(setup.managed(root, agent).files).find(name => name.endsWith('SKILL.md'))
+    const files = Object.keys(setup.managed(root, agent).files)
+    const skill = files.find(name => name.endsWith('SKILL.md'))
+    const gone = files.find(name => name !== skill)
     fs.appendFileSync(path.join(root, skill), 'edited')
-    fs.writeFileSync(path.join(root, 'custom.txt'), 'mine')
+    fs.rmSync(path.join(root, gone))
+    // A large tree dropped into the folder is named in part.
+    const extra = Array.from({ length: 12 }, (_, index) => `custom-${String(index).padStart(2, '0')}.txt`)
+    for (const name of extra) fs.writeFileSync(path.join(root, name), 'mine')
     assert.throws(() => setup.doctor(agent, options), error =>
-      error.message.includes(`Installed files were changed in ${root} (changed: ${skill}; added: custom.txt)`))
+      error.message.includes(`Installed files were changed in ${root} (changed: ${skill}; added: ${extra.slice(0, 10).join(', ')} and 2 more; missing: ${gone})`))
     const report = logs.join('\n')
     assert.match(report, new RegExp(`^${agent.name}: checked`))
     assert.ok(report.includes('(user scope): not found'), report)

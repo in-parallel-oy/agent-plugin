@@ -117,8 +117,10 @@ function managed(root, agent) {
   const added = Object.keys(files).filter(name => !(name in receipt.files))
   const missing = Object.keys(receipt.files).filter(name => !(name in files))
   if (changed.length || added.length || missing.length) {
+    // A large tree dropped into the folder would otherwise name every file, on every doctor run.
+    const names = list => list.slice(0, 10).join(', ') + (list.length > 10 ? ` and ${list.length - 10} more` : '')
     const list = [['changed', changed], ['added', added], ['missing', missing]]
-      .filter(([, names]) => names.length).map(([kind, names]) => `${kind}: ${names.join(', ')}`).join('; ')
+      .filter(([, names]) => names.length).map(([kind, files]) => `${kind}: ${names(files)}`).join('; ')
     throw new Error(`Installed files were changed in ${root} (${list}). Preserve your changes before updating or removing this copy.`)
   }
   return receipt
@@ -295,6 +297,9 @@ function projectFolders(home, cwd) {
 // report: list an unreadable file instead of throwing, so doctor shows every location first.
 const UNREADABLE = Symbol('unreadable')
 
+const UNVERIFIABLE = 'its URL is empty or not a plain HTTPS MCP URL (it has credentials, query parameters or a fragment), so setup cannot verify it'
+const DIFFERENT = 'it points to a different server than the one setup installed'
+
 // Why an in_parallel entry does not match the setup URL, without printing its URL or headers.
 function mismatch(agent, server, url, env) {
   if (server.command) return 'it starts a local command instead of connecting to a URL'
@@ -304,10 +309,8 @@ function mismatch(agent, server, url, env) {
   try { expanded = expandEndpoint(String(server.url ?? ''), agent.id, env) } catch {
     return 'its URL uses a variable that is not set, so setup cannot tell which server it points to'
   }
-  try { if (endpoint(expanded) === url) return null } catch {
-    return 'its URL is empty or not a plain HTTPS MCP URL (it has credentials, query parameters or a fragment), so setup cannot verify it'
-  }
-  return 'it points to a different server than the one setup installed'
+  try { if (endpoint(expanded) === url) return null } catch { return UNVERIFIABLE }
+  return DIFFERENT
 }
 
 function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), env = process.env, source = SOURCE, report = false } = {}) {
@@ -380,9 +383,9 @@ function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), en
       }
       const value = table.match(/^\s*url\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$/m)
       if (!value) { locations.push({ location, status: url ? 'present (not parsed)' : 'found' }); continue }
-      let matches = !url
-      try { matches ||= endpoint(value[1] ?? value[2]) === url } catch {}
-      locations.push({ location, status: matches ? 'found' : 'conflicting: it points to a different server than the one setup installed' })
+      let reason = null
+      if (url) try { if (endpoint(value[1] ?? value[2]) !== url) reason = DIFFERENT } catch { reason = UNVERIFIABLE }
+      locations.push({ location, status: reason ? `conflicting: ${reason}` : 'found' })
     }
   }
   return locations
