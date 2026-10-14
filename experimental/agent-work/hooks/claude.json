@@ -9,7 +9,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "^(mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__)?report_back$",
+        "matcher": "^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/reminders.js\"", "timeout": 10 }
         ]

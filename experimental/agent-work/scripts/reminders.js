@@ -21,11 +21,13 @@ const fs = require('node:fs')
 const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
-// In Parallel's report_back: from the plugin's server, an In Parallel server
-// configured on its own, or named bare by a Codex MCP item.
-const REPORT_BACK = /^(mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__)?report_back$/
+// In Parallel's servers: the plugin's own, or one configured on its own.
+const SERVER = '(plugin_in-parallel_in_parallel|in_parallel|in-parallel)'
+const IN_PARALLEL_SERVER = new RegExp(`^${SERVER}$`)
+// In Parallel's report_back as the client names it; the Claude Code hook matcher too.
+const REPORT_BACK = new RegExp(`^mcp__${SERVER}__report_back$`)
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
-const CODE_CALL = new RegExp(`(?<![\\w-])${REPORT_BACK.source.slice(1, -1)}\\s*\\(`, 'g')
+const CODE_CALL = new RegExp(`(?<![\\w-])(mcp__${SERVER}__)?report_back\\s*\\(`, 'g')
 const CODE_EVENT = /\bevent\b["'\s:]{0,8}(started|note|finished|released)\b/
 // A report names its item with a link or an id; one without records nothing.
 const NAMES_ITEM = /\b(link|item_id)\b["'\s]{0,4}:/
@@ -117,7 +119,9 @@ function reportCalls(node, found = [], depth = 0) {
     return found
   }
   const name = typeof node.name === 'string' ? node.name : typeof node.tool === 'string' ? node.tool : ''
-  if (REPORT_BACK.test(name)) {
+  // A Codex MCP item names the tool bare, with its server beside it.
+  const bare = name === 'report_back' && (typeof node.server !== 'string' || IN_PARALLEL_SERVER.test(node.server))
+  if (REPORT_BACK.test(name) || bare) {
     const args = parseArgs(node.input) || parseArgs(node.arguments) || {}
     found.push({ event: args.event, item: Boolean(args.link || args.item_id), urls: resultUrls(args.results) })
   } else if (node.type === 'custom_tool_call' && typeof node.input === 'string') {

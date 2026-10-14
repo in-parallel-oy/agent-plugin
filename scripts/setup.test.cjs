@@ -230,7 +230,7 @@ test('only the Development environment and localhost add experimental features, 
       assert.deepEqual(Object.keys(hooks), agent.id === 'claude'
         ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] : ['UserPromptSubmit', 'PostToolUse', 'Stop'])
       if (agent.id === 'claude') {
-        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), ['^(mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__)?report_back$'])
+        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), ['^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$'])
       }
       for (const event of agent.id === 'claude' ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'] : ['UserPromptSubmit', 'PostToolUse']) {
         for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)

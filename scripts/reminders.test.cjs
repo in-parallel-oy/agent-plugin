@@ -180,11 +180,15 @@ test('report_back gets the session id as client_session, with every other argume
 test('only In Parallel report_back calls are tagged or counted as reports', t => {
   for (const name of [SERVER_TOOL, 'mcp__in_parallel__report_back', 'mcp__in-parallel__report_back']) assert.ok(respond(preToolUse({ tool_name: name })), name)
   for (const name of ['mcp__plugin_in-parallel_in_parallel__report_back_reminder', 'mcp__plugin_in-parallel_in_parallel__get_action_item',
-    'mcp__other__report_back', 'Bash']) assert.equal(respond(preToolUse({ tool_name: name })), null, name)
+    'mcp__other__report_back', 'report_back', 'Bash']) assert.equal(respond(preToolUse({ tool_name: name })), null, name)
   // The transcript scan agrees: another server's report_back is not a report.
   assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__other__report_back', { item_id: '0a1b2c3d', event: 'started' })])), false)
   const other = code('await tools.mcp__other__report_back({ item_id: "0a1b2c3d", event: "started" })')
   assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), other])), false)
+  // A Codex MCP item names the tool bare and its server beside it.
+  const mcpItem = server => ({ type: 'item.completed', item: { type: 'mcp_tool_call', server, tool: 'report_back', arguments: { item_id: '0a1b2c3d', event: 'started' } } })
+  assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), mcpItem('in_parallel')])), true)
+  assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), mcpItem('other')])), false)
   // The hook's matcher is the same pattern.
   const [group] = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'claude.json'), 'utf8')).hooks.PreToolUse
   assert.equal(group.matcher, REPORT_BACK.source)
