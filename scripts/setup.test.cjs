@@ -1010,7 +1010,7 @@ test('setup names the project-scope copy it found and the one command that remov
   const native = host(agent, home)
   native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: '/work/app' }]
   assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} }),
-    { message: 'Found in-parallel@team installed at project scope for /work/app. Setup did not install it and changes only your user installation and leaves it in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project' })
+    { message: 'Found in-parallel@team installed at project scope for /work/app. Setup did not install it. Setup changes only your user installation and leaves it in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project' })
   assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team'])
   assert.equal(fs.existsSync(setup.target(agent, home)), false)
 })
@@ -1196,6 +1196,44 @@ for (const agent of setup.AGENTS.filter(item => item.id !== 'codex')) {
   })
 }
 
+for (const agent of setup.AGENTS.filter(item => item.id !== 'codex')) {
+  test(`${agent.name}: doctor with a setup copy names the legacy-entry fix once`, t => {
+    const home = fixture(t)
+    const native = host(agent, home)
+    const logs = []
+    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+    setup.install(agent, PRODUCTION, { ...options, log() {} })
+    const file = agent.id === 'claude' ? path.join(home, '.claude.json') : path.join(home, '.cursor', 'mcp.json')
+    const config = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, JSON.stringify({ ...config, mcpServers: { 'in-parallel': { url: PRODUCTION } } }))
+    let thrown = ''
+    assert.throws(() => setup.doctor(agent, options), error => {
+      thrown = error.message
+      return error.message === 'A legacy in-parallel MCP entry conflicts; see the fix above.'
+    })
+    const output = `${logs.join('\n')}\n${thrown}`
+    assert.equal(output.split('Rename it to in_parallel').length - 1, 1, output)
+  })
+}
+
+test('doctor does not print a credentialed endpoint from a hand-edited receipt', t => {
+  const home = fixture(t)
+  for (const agent of setup.AGENTS) {
+    const native = host(agent, home)
+    const logs = []
+    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+    setup.install(agent, PRODUCTION, { ...options, log() {} })
+    const file = path.join(setup.target(agent, home), setup.RECEIPT)
+    const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
+    fs.writeFileSync(file, JSON.stringify({ ...receipt, endpoint: 'https://user:do-not-print@example.com/mcp?token=do-not-print' }))
+    assert.throws(() => setup.doctor(agent, options), error => !/do-not-print/.test(error.message))
+    const report = logs.join('\n')
+    assert.ok(report.includes('  Setup-managed MCP endpoint: not a valid MCP URL; not printed\n'), report)
+    assert.doesNotMatch(report, /do-not-print/)
+  }
+})
+
 test('Claude doctor without a setup install says a project copy was not installed by setup and how to remove it', t => {
   const home = fixture(t)
   const agent = setup.AGENTS[0]
@@ -1204,7 +1242,7 @@ test('Claude doctor without a setup install says a project copy was not installe
   const logs = []
   setup.doctor(agent, { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) })
   const report = logs.join('\n')
-  assert.ok(report.includes('  Found in-parallel@team installed at project scope for /work/app. Setup did not install it and does not need it removed; it can be left in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project'), report)
+  assert.ok(report.includes('  Found in-parallel@team installed at project scope for /work/app. Setup did not install it. It does not need to be removed; it can be left in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project'), report)
   assert.doesNotMatch(report, /Setup-managed MCP endpoint/)
   assert.match(report, /no setup-managed installation/)
 })

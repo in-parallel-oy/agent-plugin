@@ -243,8 +243,8 @@ function inventory(agent, execute = run) {
 function projectScope(plugin, cwd, conflict = true) {
   const scope = plugin.scope || 'project'
   const dir = plugin.projectPath || cwd
-  const keep = conflict ? 'changes only your user installation and leaves it in place' : 'does not need it removed; it can be left in place'
-  return `Found ${pluginId(plugin)} installed at ${scope} scope for ${dir}. Setup did not install it and ${keep}. To remove it, run: cd ${JSON.stringify(dir)} && claude plugin uninstall ${pluginId(plugin)} --scope ${scope}`
+  const keep = conflict ? 'Setup changes only your user installation and leaves it in place.' : 'It does not need to be removed; it can be left in place.'
+  return `Found ${pluginId(plugin)} installed at ${scope} scope for ${dir}. Setup did not install it. ${keep} To remove it, run: cd ${JSON.stringify(dir)} && claude plugin uninstall ${pluginId(plugin)} --scope ${scope}`
 }
 
 // The client's In Parallel copies and the setup marketplace, from its own inventory.
@@ -609,7 +609,9 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
   // Without a setup-managed copy, a project copy is reported here; with one, it is an error below.
   const notes = !receipt && agent.id === 'claude' && state
     ? state.existing.filter(plugin => plugin.scope && plugin.scope !== 'user').map(plugin => projectScope(plugin, cwd, false)) : []
-  log([`${agent.name}: checked`, ...(receipt ? [`  Setup-managed MCP endpoint: ${receipt.endpoint}`] : []),
+  // A hand-edited receipt may hold a credential: print only an endpoint that passes validation.
+  const shown = () => { try { return endpoint(receipt.endpoint) } catch { return 'not a valid MCP URL; not printed' } }
+  log([`${agent.name}: checked`, ...(receipt ? [`  Setup-managed MCP endpoint: ${shown()}`] : []),
     ...locations.flatMap(({ location, status, fix, message }) => [`  ${location}: ${status}`, ...(fix ? [`    ${message}`] : [])]),
     ...notes.map(note => `  ${note}`)].join('\n'))
   if (failure) throw failure
@@ -625,7 +627,11 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
     .filter(name => /(^|\/)(hooks|scripts)\/|(^|\/)skills\//.test(name))
     .some(name => !(name in receipt.files))
   if (missing) throw new Error('Installed with outdated files. Run setup again to update.')
-  preflightMcp(agent, receipt.endpoint, { home, cwd, env, source })
+  try { preflightMcp(agent, receipt.endpoint, { home, cwd, env, source }) } catch (error) {
+    // The legacy entry's fix is already listed under its location.
+    if (locations.some(({ fix, message }) => fix && message === error.message)) throw new Error('A legacy in-parallel MCP entry conflicts; see the fix above.')
+    throw error
+  }
   if (agent.command) {
     const { installed, registered, foreign } = state
     const project = foreign.find(plugin => agent.id === 'claude' && plugin.scope !== 'user')

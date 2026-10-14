@@ -87,8 +87,9 @@ conflicting entry says what it conflicts with and why, and a legacy entry named
 `in-parallel` comes with how to fix it. Changed installed files are named; when
 an installed `.mcp.json` gained an `Authorization` header, `doctor` says a
 credential header was added without printing it. It always shows the endpoint
-setup installed, even when a check fails. A project copy setup did not install
-is named with the command that removes it, or can be left in place. It checks what is installed, not that it works: to check that,
+setup installed, even when a check fails. Without a setup copy, `doctor` lists
+any project copy setup did not install, says it can stay, and gives the command
+that removes it. It checks what is installed, not that it works: to check that,
 ask your agent "Check my In Parallel connection". When the previous `doctor`
 run failed, it shows that error and when.
 
