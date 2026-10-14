@@ -159,10 +159,10 @@ ask it to pause, it reports a note saying so and leaves the item in Doing; if
 it is reminded to finish when it stops, it tells you the work is paused. When
 it stops to wait for you, such as for an approval or an answer, it reports a
 note marked `waiting: true`; the item then shows it waiting on you. Waiting
-does not override a handover: if the reply says the To do is now someone
-else's, it tells you and stops reporting on it. If you tell it not to report,
+does not override a handover: when it comes back to the item and reads that
+the item now has a new owner, it tells you and stops reporting on it. If you tell it not to report,
 it does not, and when it stops it tells you why it stops without reporting.
-Before starting an item again, it reads the item again.
+It reads the item before it reports starting, and again before any later start.
 
 The general `in-parallel` skill never creates or edits pages or items you did
 not ask for, and confirms each write with you except a `report_back` report.
@@ -210,8 +210,7 @@ Parallel answers from the reports it recorded:
   starting an item, which may come before the work is done. Your assistant can
   still stop by saying why the work isn't finished.
 - An item your assistant reported it is waiting on you for (a note with
-  `waiting: true`) is not reminded about, unless it was handed over to
-  someone else: then the reminder comes, so your assistant tells you.
+  `waiting: true`) is not reminded about.
 - Notes never bring the reminder back. Only reporting the item started again
   does, until it is finished.
 - It never reminds at the stop right after a reminder.

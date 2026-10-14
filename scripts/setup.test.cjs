@@ -289,6 +289,12 @@ for (const agent of setup.AGENTS) {
     }
     assert.match(fs.readFileSync(path.join(plugin, 'skills', 'in-parallel-agent-work', 'SKILL.md'), 'utf8'),
       /\*\*Put down\.\*\*[^]*`event: "note"`[^]*`update_action_item`[^]*never to Done or Cancelled unless they ask/)
+    const agentWork = fs.readFileSync(path.join(plugin, 'skills', 'in-parallel-agent-work', 'SKILL.md'), 'utf8')
+    assert.match(agentWork, /Waiting does not override a handover\.[^]*`since_you_last_checked` shows a new\s+owner[^]*stop reporting on it/)
+    assert.match(agentWork, /When the person says not to report, do not report; when you stop, tell them\s+why you are stopping without reporting/)
+    assert.match(agentWork, /read the item with its tool, such as\s+`get_action_item`, then call `report_back`[^]*Read it again before any later start/)
+    assert.match(fs.readFileSync(path.join(plugin, 'skills', 'work-on', 'SKILL.md'), 'utf8'),
+      /\*\*Start\.\*\* Read the picked To do with `get_action_item`, then call\s+`report_back` with `event: "started"`/)
     assert.equal(/\/hooks/.test(logs.join('\n')), hooks)
     logs.length = 0
     setup.doctor(agent, options)

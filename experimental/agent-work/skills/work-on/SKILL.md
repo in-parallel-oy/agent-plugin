@@ -26,17 +26,19 @@ once you work on it.
    `list_action_items` in its workspace (`workspace_id`), with its title as
    `query`, a `status` of `in_progress`, `assigned` or `backlog`, and a small
    `limit`.
-3. **Start.** Call `report_back` with `event: "started"` and the picked To
-   do: its `in-parallel://` link as `link` when you have one, otherwise its id
-   as `item_id`. A To do moves to Doing. Read it with `get_action_item`, and
-   read it again before any later start.
+3. **Start.** Read the picked To do with `get_action_item`, then call
+   `report_back` with `event: "started"` and the To do: its `in-parallel://`
+   link as `link` when you have one, otherwise its id as `item_id`. A To do
+   moves to Doing. Read it again before any later start. When step 2 already
+   started it with `ask: true`, read it now.
 4. **Work.** Do what the To do describes, with the person. Report as the
    `in-parallel-agent-work` skill says: notes at turning points, read the item
    again before finishing, then `finished` with `results`: links to what the
    work produced, each with a short label, such as the pull request. When you
-   stop to wait for the person, report a note with `waiting: true`; if its
-   reply says the To do is now someone else's, tell the person and stop
-   reporting on it. When the person says not to report, do not report,
+   stop to wait for the person, report a note with `waiting: true`. When you
+   come back to it, read it again: if its `since_you_last_checked` shows a new
+   owner, or a stop reminder says it is now someone else's, tell the person
+   and stop reporting on it. When the person says not to report, do not report,
    and when you stop, tell them why you stop without reporting. When the
    work looks incomplete, such as a TODO left or a step not done, ask the
    person before finishing, or finish only your part with `close: false` and

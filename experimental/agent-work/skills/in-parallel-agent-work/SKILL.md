@@ -72,9 +72,10 @@ why you are stopping without reporting.
 7. **Wait.** When you stop to wait for the person, such as for an approval
    or an answer, report `event: "note"` with `waiting: true` and a `note`
    saying what you wait for. That answers the stop reminder for the item.
-   Waiting does not override a handover: when the reply has an
-   `owner_notice` saying the To do is now someone else's, tell the person and
-   stop reporting on it.
+   Waiting does not override a handover. When you come back to the item,
+   read it again: when its `since_you_last_checked` shows a new owner, or a
+   stop reminder says it is now someone else's and the person you act for no
+   longer owns it, tell the person and stop reporting on it.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
