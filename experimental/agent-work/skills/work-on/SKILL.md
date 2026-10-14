@@ -28,12 +28,16 @@ once you work on it.
    `limit`.
 3. **Start.** Call `report_back` with `event: "started"` and the picked To
    do: its `in-parallel://` link as `link` when you have one, otherwise its id
-   as `item_id`. A To do moves to Doing. Read it with `get_action_item`.
+   as `item_id`. A To do moves to Doing. Read it with `get_action_item`, and
+   read it again before any later start.
 4. **Work.** Do what the To do describes, with the person. Report as the
    `in-parallel-agent-work` skill says: notes at turning points, read the item
    again before finishing, then `finished` with `results`: links to what the
    work produced, each with a short label, such as the pull request. When you
-   stop to wait for the person, report a note with `waiting: true`. When the
+   stop to wait for the person, report a note with `waiting: true`; if its
+   reply says the To do is now someone else's, tell the person and stop
+   reporting on it. When the person says not to report, do not report,
+   and when you stop, tell them why you stop without reporting. When the
    work looks incomplete, such as a TODO left or a step not done, ask the
    person before finishing, or finish only your part with `close: false` and
    say what remains.

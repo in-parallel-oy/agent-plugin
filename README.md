@@ -137,9 +137,10 @@ and leaves the To do open. Before finishing, your assistant
 reads the item again to see what people changed while it worked. When the work
 looks incomplete, such as a TODO left or a step not done, it asks you before
 finishing, or finishes only its part with `close: false` and says what remains.
-In Parallel's replies name you, the person it acts for, in `acting_for`. When In
-Parallel says people outside your company can read the item, your assistant
-writes its notes for them and leaves out internal details.
+In Parallel's replies name the person it acts for in `acting_for`: the person
+its In Parallel connection reports for, usually you. When In Parallel says
+people outside your company can read the item, your assistant writes its notes
+for them and leaves out internal details.
 
 When you ask your assistant to report work without naming an item, it works
 out the item itself: it sends `report_back` one short sentence naming the work,
@@ -157,7 +158,11 @@ report that. If you ask it to check with you before reporting, it does. If you
 ask it to pause, it reports a note saying so and leaves the item in Doing; if
 it is reminded to finish when it stops, it tells you the work is paused. When
 it stops to wait for you, such as for an approval or an answer, it reports a
-note marked `waiting: true`; the item then shows it waiting on you.
+note marked `waiting: true`; the item then shows it waiting on you. Waiting
+does not override a handover: if the reply says the To do is now someone
+else's, it tells you and stops reporting on it. If you tell it not to report,
+it does not, and when it stops it tells you why it stops without reporting.
+Before starting an item again, it reads the item again.
 
 The general `in-parallel` skill never creates or edits pages or items you did
 not ask for, and confirms each write with you except a `report_back` report.
@@ -205,7 +210,8 @@ Parallel answers from the reports it recorded:
   starting an item, which may come before the work is done. Your assistant can
   still stop by saying why the work isn't finished.
 - An item your assistant reported it is waiting on you for (a note with
-  `waiting: true`) is not reminded about.
+  `waiting: true`) is not reminded about, unless it was handed over to
+  someone else: then the reminder comes, so your assistant tells you.
 - Notes never bring the reminder back. Only reporting the item started again
   does, until it is finished.
 - It never reminds at the stop right after a reminder.

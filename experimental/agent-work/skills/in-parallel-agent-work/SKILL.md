@@ -25,13 +25,19 @@ Report state changes, not activity: started, finished, and finished with
 `close: false` when only your part is done. A note is for a turning point the
 owner should know about, not a progress log.
 
-Replies name the person you act for in `acting_for`; where a reply says "the
-person you act for", it means them.
+Replies name the person you act for in `acting_for`: the person this
+connection reports for, usually the person you are talking to. Where a reply
+says "the person you act for", it means them.
+
+When the person says not to report, do not report; when you stop, tell them
+why you are stopping without reporting.
 
 ## Report
 
-1. **Start.** Call `report_back` with the `link` and `event: "started"` when
-   you begin. A To do moves to Doing. When the reply lists `others_working`,
+1. **Start.** When you begin, read the item with its tool, such as
+   `get_action_item`, then call `report_back` with the `link` and
+   `event: "started"`. Read it again before any later start: people may have
+   changed it. A To do moves to Doing. When the reply lists `others_working`,
    other people or agents have started it too: tell the person you act for and
    coordinate rather than duplicate their work. When the reply has an
    `owner_notice`, the item belongs to someone other than the person you act
@@ -66,6 +72,9 @@ person you act for", it means them.
 7. **Wait.** When you stop to wait for the person, such as for an approval
    or an answer, report `event: "note"` with `waiting: true` and a `note`
    saying what you wait for. That answers the stop reminder for the item.
+   Waiting does not override a handover: when the reply has an
+   `owner_notice` saying the To do is now someone else's, tell the person and
+   stop reporting on it.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
