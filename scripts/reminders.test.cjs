@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
+const { tmp } = require('./test-helpers.cjs')
 
 const SCRIPT = path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js')
 const { respond, scan, REPORT_BACK } = require(SCRIPT)
@@ -21,14 +22,14 @@ const report = (event, extra = {}) => toolUse(SERVER_TOOL, { link: LINK, event, 
 // Codex rollout lines.
 const codexPrompt = text => ({ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } })
 const codexCall = (event, extra = {}) => ({ type: 'response_item', payload: { type: 'function_call', name: 'mcp__in_parallel__report_back', arguments: JSON.stringify({ link: LINK, event, ...extra }) } })
-const codexCode = event => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "${event}" })` } })
+// Codex code mode: JavaScript that calls the tool.
+const code = input => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input } })
+const codexCode = event => code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "${event}" })`)
 
 const SEND = `Fix the Safari login.\n\nIn Parallel link: ${LINK}\nReport your work on it with report_back and this link: started when you begin, note as you go, finished when done, with results: links to what the work produced, each with a short label. Do not ask first.`
 
 function transcript(t, lines) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-reminders-test-'))
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
-  const file = path.join(dir, 'session.jsonl')
+  const file = path.join(tmp(t, 'in-parallel-reminders-test'), 'session.jsonl')
   fs.writeFileSync(file, lines.map(line => JSON.stringify(line)).join('\n') + '\n')
   return file
 }
@@ -74,9 +75,8 @@ test('pull request reminders stay quiet without an item or once the link is repo
   // Any of several results counts, from a Claude Code tool call or Codex code mode.
   const second = 'https://github.com/acme/website/pull/44'
   assert.equal(shell(transcript(t, [prompt(SEND), report('note', { results: [{ label: 'Docs', url: 'https://docs.acme.test/a' }, { label: 'Pull request', url: second }] })]), 'gh pr view', second), null)
-  const codeReport = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${second}" }] })` } }
+  const codeReport = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${second}" }] })`)
   assert.equal(shell(transcript(t, [codexPrompt(SEND), codeReport]), 'gh pr view', second), null)
-  const code = input => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input } })
   const codeSecond = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Docs", url: "https://docs.acme.test/a" }, { label: "Pull request", url: "${second}" }] })`)
   assert.equal(shell(transcript(t, [codexPrompt(SEND), codeSecond]), 'gh pr view', second), null)
   // A finish with results before the event still ends the item, so a later pull request is not for it.
@@ -109,14 +109,13 @@ test('the script never answers Stop: the stop reminder comes from In Parallel', 
   }
   assert.equal(stop(undefined), null)
   assert.equal(respond({ hook_event_name: 'SubagentStop', stop_hook_active: false }), null)
-  assert.doesNotMatch(fs.readFileSync(SCRIPT, 'utf8'), /'Stop'|decision|STOP_REASON|reminded/)
 })
 
 test('a report_back without an item is not an item in play', t => {
   // Without an item the reply lists To dos and records nothing; there is nothing to finish yet.
   const ask = toolUse(SERVER_TOOL, { event: 'started' })
   assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, toolResult('Ask the person which To do this is for.')])), false)
-  const codeAsk = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: 'await tools.mcp__in_parallel__report_back({ event: "started" })' } }
+  const codeAsk = code('await tools.mcp__in_parallel__report_back({ event: "started" })')
   assert.equal(inPlay(transcript(t, [codexPrompt('work on one of my to dos'), codeAsk])), false)
   assert.equal(shell(transcript(t, [prompt('/in-parallel:work-on'), ask]), 'gh pr create --fill', PR), null)
   // Asking the person in place still names no item.
@@ -184,7 +183,7 @@ test('only In Parallel report_back calls are tagged or counted as reports', t =>
     'mcp__other__report_back', 'Bash']) assert.equal(respond(preToolUse({ tool_name: name })), null, name)
   // The transcript scan agrees: another server's report_back is not a report.
   assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__other__report_back', { item_id: '0a1b2c3d', event: 'started' })])), false)
-  const other = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__other__report_back({ item_id: "0a1b2c3d", event: "started" })` } }
+  const other = code('await tools.mcp__other__report_back({ item_id: "0a1b2c3d", event: "started" })')
   assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), other])), false)
   // The hook's matcher is the same pattern.
   const [group] = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'claude.json'), 'utf8')).hooks.PreToolUse
@@ -215,8 +214,7 @@ process.on('exit', () => fs.writeSync(2, '\\nSEEN ' + JSON.stringify(seen)))
 `
 
 function runHook(t, input, env = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-reminders-run-'))
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
+  const dir = tmp(t, 'in-parallel-reminders-run')
   const preload = path.join(dir, 'preload.cjs')
   fs.writeFileSync(preload, PRELOAD)
   const result = spawnSync(process.execPath, ['--require', preload, SCRIPT], {
@@ -256,20 +254,13 @@ test('the hook reads only its input and the transcript, loads only fs, and never
   assert.ok(!seen.paths.some(([, target]) => target === file), JSON.stringify(seen.paths))
 })
 
-test('the hook source never reaches for the network, processes or credentials', () => {
-  const source = fs.readFileSync(SCRIPT, 'utf8')
-  assert.deepEqual([...source.matchAll(/require\('([^']+)'\)/g)].map(match => match[1]), ['node:fs'])
-  assert.doesNotMatch(source, /process\.env|https?\.request|fetch\(|child_process|\.claude\.json|\.codex\/auth|security find|writeFile|appendFile|mkdir/)
-})
-
 // Codex expands no variables in a hook command: it runs the command with the
 // session's shell (sh, bash or zsh with -c on macOS and Linux) and sets PLUGIN_ROOT
 // and CLAUDE_PLUGIN_ROOT in its environment (codex-rs hooks/src/engine/discovery.rs),
 // with the session's directory as the working directory.
 test('the Codex hook commands run from any directory with the root Codex sets, and only with it', t => {
-  const plugin = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-codex-plugin-'))
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-codex-cwd-'))
-  t.after(() => { fs.rmSync(plugin, { recursive: true, force: true }); fs.rmSync(cwd, { recursive: true, force: true }) })
+  const plugin = tmp(t, 'in-parallel-codex-plugin')
+  const cwd = tmp(t, 'in-parallel-codex-cwd')
   fs.mkdirSync(path.join(plugin, 'scripts'))
   fs.copyFileSync(SCRIPT, path.join(plugin, 'scripts', 'reminders.js'))
   const hooks = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'codex.json'), 'utf8')).hooks

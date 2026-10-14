@@ -4,57 +4,50 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
 const { e2eFiles, main, MARKETPLACE } = require('./e2e-bundle')
 const setup = require('./setup-lib')
+const { SKILLS, tmp } = require('./test-helpers.cjs')
 
 const ENDPOINT = 'http://localhost:4000/mcp'
 const SECRET = 'pat_secret_value'
 
-function out(t) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-e2e-'))
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
-  return path.join(dir, 'bundle')
-}
+const out = t => path.join(tmp(t, 'in-parallel-e2e'), 'bundle')
 
 const read = (root, name) => fs.readFileSync(path.join(root, name), 'utf8')
 const walk = root => fs.readdirSync(root, { recursive: true }).filter(name => fs.statSync(path.join(root, name)).isFile())
 
-test('Claude Code gets a plugin directory with the hooks, skills and endpoint, and only the token variable name', t => {
-  const root = out(t)
-  const logs = []
-  process.env.E2E_TEST_TOKEN = SECRET
-  t.after(() => delete process.env.E2E_TEST_TOKEN)
-  main(['--agent', 'claude', '--url', ENDPOINT, '--out', root, '--token-env', 'E2E_TEST_TOKEN'], line => logs.push(line))
-  const manifest = JSON.parse(read(root, '.claude-plugin/plugin.json'))
-  assert.equal(manifest.hooks, './hooks/claude.json')
-  assert.deepEqual(JSON.parse(read(root, 'hooks/claude.json')), JSON.parse(read(setup.SOURCE, 'experimental/agent-work/hooks/claude.json')))
-  assert.ok(fs.existsSync(path.join(root, 'scripts/reminders.js')))
-  for (const skill of ['in-parallel', 'in-parallel-agent-work', 'work-on']) assert.ok(fs.existsSync(path.join(root, 'skills', skill, 'SKILL.md')), skill)
-  assert.deepEqual(JSON.parse(read(root, '.mcp.json')).mcpServers.in_parallel, { type: 'http', url: ENDPOINT, headers: { Authorization: 'Bearer ${E2E_TEST_TOKEN}' } })
-  assert.equal(fs.existsSync(path.join(root, '.claude-plugin/marketplace.json')), false)
-  assert.equal(fs.existsSync(path.join(root, setup.RECEIPT)), false)
-  assert.ok(!walk(root).some(name => read(root, name).includes(SECRET)))
-  assert.match(logs.join('\n'), new RegExp(`claude --plugin-dir ${root}`))
-})
-
-test('Codex gets a local marketplace with the hooks, skills and endpoint, and bearer_token_env_var', t => {
-  const root = out(t)
-  process.env.E2E_TEST_TOKEN = SECRET
-  t.after(() => delete process.env.E2E_TEST_TOKEN)
-  main(['--agent', 'codex', '--url', ENDPOINT, '--out', root, '--token-env', 'E2E_TEST_TOKEN'], () => {})
-  const plugin = path.join(root, 'plugins/in-parallel')
-  const market = JSON.parse(read(root, '.agents/plugins/marketplace.json'))
-  assert.equal(market.name, MARKETPLACE)
-  assert.notEqual(market.name, setup.MARKETPLACE)
-  assert.deepEqual(market.plugins.map(entry => entry.source.path), ['./plugins/in-parallel'])
-  assert.equal(JSON.parse(read(plugin, '.codex-plugin/plugin.json')).hooks, './hooks/codex.json')
-  assert.deepEqual(JSON.parse(read(plugin, 'hooks/codex.json')), JSON.parse(read(setup.SOURCE, 'experimental/agent-work/hooks/codex.json')))
-  for (const skill of ['in-parallel', 'in-parallel-agent-work', 'work-on']) assert.ok(fs.existsSync(path.join(plugin, 'skills', skill, 'SKILL.md')), skill)
-  assert.deepEqual(JSON.parse(read(plugin, 'mcp.json')).mcpServers.in_parallel, { type: 'streamable-http', url: ENDPOINT, bearer_token_env_var: 'E2E_TEST_TOKEN' })
-  assert.ok(!walk(root).some(name => read(root, name).includes(SECRET)))
-})
+for (const { agent, plugin, config, server } of [
+  { agent: 'claude', plugin: '', config: '.mcp.json', server: { type: 'http', url: ENDPOINT, headers: { Authorization: 'Bearer ${E2E_TEST_TOKEN}' } } },
+  { agent: 'codex', plugin: 'plugins/in-parallel', config: 'mcp.json', server: { type: 'streamable-http', url: ENDPOINT, bearer_token_env_var: 'E2E_TEST_TOKEN' } },
+]) {
+  test(`${agent}: the plugin has the hooks, skills and endpoint, and only the token variable name`, t => {
+    const root = out(t)
+    const logs = []
+    process.env.E2E_TEST_TOKEN = SECRET
+    t.after(() => delete process.env.E2E_TEST_TOKEN)
+    main(['--agent', agent, '--url', ENDPOINT, '--out', root, '--token-env', 'E2E_TEST_TOKEN'], line => logs.push(line))
+    const dir = path.join(root, plugin)
+    assert.equal(JSON.parse(read(dir, `.${agent}-plugin/plugin.json`)).hooks, `./hooks/${agent}.json`)
+    assert.deepEqual(JSON.parse(read(dir, `hooks/${agent}.json`)), JSON.parse(read(setup.SOURCE, `experimental/agent-work/hooks/${agent}.json`)))
+    assert.ok(fs.existsSync(path.join(dir, 'scripts/reminders.js')))
+    for (const skill of SKILLS) assert.ok(fs.existsSync(path.join(dir, 'skills', skill, 'SKILL.md')), skill)
+    assert.deepEqual(JSON.parse(read(dir, config)).mcpServers.in_parallel, server)
+    assert.equal(fs.existsSync(path.join(root, setup.RECEIPT)), false)
+    assert.ok(!walk(root).some(name => read(root, name).includes(SECRET)))
+    if (agent === 'claude') {
+      // A plugin directory for --plugin-dir, without the setup marketplace.
+      assert.equal(fs.existsSync(path.join(root, '.claude-plugin/marketplace.json')), false)
+      assert.match(logs.join('\n'), new RegExp(`claude --plugin-dir ${root}`))
+    } else {
+      // A local marketplace of its own.
+      const market = JSON.parse(read(root, '.agents/plugins/marketplace.json'))
+      assert.equal(market.name, MARKETPLACE)
+      assert.notEqual(market.name, setup.MARKETPLACE)
+      assert.deepEqual(market.plugins.map(entry => entry.source.path), ['./plugins/in-parallel'])
+    }
+  })
+}
 
 test('without --token-env no authentication is configured', () => {
   for (const agent of ['claude', 'codex']) {

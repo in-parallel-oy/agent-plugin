@@ -3,10 +3,10 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const setup = require('./setup-lib')
+const { SKILLS, tmp } = require('./test-helpers.cjs')
 // The shipped default endpoint, read rather than repeated so fixtures follow the config.
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 
@@ -18,11 +18,7 @@ function journalCache(home) {
   return () => fs.readdirSync(dir).filter(name => name !== 'setup').sort()
 }
 
-function fixture(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-setup-test-'))
-  t.after(() => fs.rmSync(home, { recursive: true, force: true }))
-  return home
-}
+const fixture = t => tmp(t, 'in-parallel-setup-test')
 
 function host(agent, home) {
   const state = { plugins: [], marketplaces: [], calls: [], failInstall: false, failRemove: false, ignoreRemove: false, stale: false, claudeVersion: '2.1.263 (Claude Code)' }
@@ -62,6 +58,20 @@ function host(agent, home) {
     else throw new Error(`Unexpected command: ${args.join(' ')}`)
   }
   return state
+}
+
+// A Claude Code client in a fresh home, run from cwd (a folder inside it). options
+// logs to logs; spread { ...options, log() {} } for silence. Its execute calls
+// native.execute when it runs, so a test can still wrap that.
+function claude(t, cwd = '') {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  const logs = []
+  const dir = path.join(home, cwd)
+  fs.mkdirSync(dir, { recursive: true })
+  const options = { home, cwd: dir, env: {}, execute: (...args) => native.execute(...args), log: line => logs.push(line) }
+  return { home, agent, native, logs, options }
 }
 
 test('endpoint accepts production and loopback development without embedding secrets', () => {
@@ -162,10 +172,7 @@ test('foreign plugins and marketplace collisions stop before creating files', t 
 })
 
 test('failed native installation can be retried and stale registration is not success', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
+  const { agent, native, options } = claude(t)
   native.failInstall = true
   assert.throws(() => setup.install(agent, PRODUCTION, options), /Native installation failed/)
   native.failInstall = false
@@ -205,7 +212,7 @@ test('only the Development environment and localhost add experimental features, 
     for (const url of ['https://www.in-parallel.dev/mcp', 'https://in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp']) {
       const dev = setup.bundle(agent, url)
       assert.deepEqual(dev.receipt.experimental, ['agent-work'])
-      for (const skill of ['in-parallel', 'in-parallel-agent-work', 'work-on']) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
+      for (const skill of SKILLS) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
       assert.ok(dev.files[`${prefix}skills/work-on/agents/openai.yaml`])
       const manifest = JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`])
       const extra = Object.keys(dev.files).filter(name => /(^|\/)(hooks|scripts)\//.test(name)).sort()
@@ -278,7 +285,7 @@ for (const agent of setup.AGENTS) {
     const root = setup.target(agent, home)
     const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
     const hooks = agent.id !== 'cursor'
-    assert.ok(fs.existsSync(path.join(plugin, 'skills', 'work-on', 'SKILL.md')))
+    for (const skill of SKILLS) assert.ok(fs.existsSync(path.join(plugin, 'skills', skill, 'SKILL.md')), skill)
     assert.equal(fs.existsSync(path.join(plugin, 'scripts', 'reminders.js')), hooks)
     assert.equal(fs.existsSync(path.join(plugin, 'hooks', `${agent.id}.json`)), hooks)
     if (hooks) {
@@ -552,10 +559,7 @@ for (const agent of setup.AGENTS.filter(agent => agent.command)) {
 }
 
 test('Claude project installations are not mistaken for an owned user installation', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
+  const { agent, native, options } = claude(t)
   setup.install(agent, PRODUCTION, options)
   native.plugins.push({ ...native.plugins[0], scope: 'project' })
   assert.throws(() => setup.install(agent, PRODUCTION, options), /--scope project/)
@@ -693,21 +697,17 @@ for (const agent of setup.AGENTS.filter(agent => agent.command)) {
 }
 
 test('Claude replacement refuses clients that can uninstall the wrong marketplace copy', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
+  const { home, agent, native, options } = claude(t)
   const old = { id: 'in-parallel@in-parallel', scope: 'user', enabled: true }
   native.plugins = [old]
   for (const version of ['1.9.999 (Claude Code)', '2.0.999 (Claude Code)', '2.1.211 (Claude Code)', 'unknown']) {
     native.claudeVersion = version
-    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', {
-      home, execute: native.execute, replace: [old.id], log() {},
-    }), /Update Claude Code to 2.1.212/)
+    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', { ...options, replace: [old.id] }), /Update Claude Code to 2.1.212/)
     assert.deepEqual(native.plugins, [old])
     assert.equal(fs.existsSync(setup.target(agent, home)), false)
   }
   native.claudeVersion = '2.1.212 (Claude Code)'
-  setup.install(agent, 'http://localhost:54104/mcp', { home, cwd: home, env: {}, execute: native.execute, replace: [old.id], log() {} })
+  setup.install(agent, 'http://localhost:54104/mcp', { ...options, replace: [old.id] })
   assert.deepEqual(native.plugins.map(plugin => plugin.id), [setup.PLUGIN])
 })
 
@@ -864,30 +864,24 @@ for (const agent of [setup.AGENTS[0], setup.AGENTS[2]]) {
 
 
 test('the source checkout MCP template does not prevent preparing a chosen endpoint', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
+  const { home, agent, options } = claude(t)
   const file = path.join(setup.SOURCE, '.mcp.json')
   const original = fs.readFileSync(file, 'utf8')
-  setup.install(agent, 'http://localhost:54104/mcp', { home, cwd: setup.SOURCE, env: {}, execute: native.execute, log() {} })
+  setup.install(agent, 'http://localhost:54104/mcp', { ...options, cwd: setup.SOURCE })
   assert.equal(setup.managed(setup.target(agent, home), agent).endpoint, 'http://localhost:54104/mcp')
   assert.equal(fs.readFileSync(file, 'utf8'), original)
 })
 
 test('uninstall backs up, removes only receipt files one line each, and keeps other scopes', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const cwd = path.join(home, 'project')
-  fs.mkdirSync(cwd)
-  setup.install(agent, PRODUCTION, { home, cwd, env: {}, execute: native.execute, log() {} })
+  const { home, agent, native, logs, options } = claude(t, 'project')
+  const { cwd } = options
+  setup.install(agent, PRODUCTION, { ...options, log() {} })
   const root = setup.target(agent, home)
   const names = [...Object.keys(setup.managed(root, agent).files), setup.RECEIPT]
   const contents = Object.fromEntries(names.map(name => [name, fs.readFileSync(path.join(root, name))]))
   const project = { id: 'in-parallel@team', scope: 'project', enabled: true, version: '1.0.0' }
   native.plugins.push(project)
-  const logs = []
-  setup.uninstall(agent, { home, cwd, execute: native.execute, log: line => logs.push(line) })
+  setup.uninstall(agent, options)
   const lines = logs.join('\n').split('\n')
   assert.equal(fs.existsSync(root), false)
   assert.deepEqual(native.plugins, [project])
@@ -902,10 +896,8 @@ test('uninstall backs up, removes only receipt files one line each, and keeps ot
 })
 
 test('uninstall refuses a file changed after its check and keeps it', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} })
+  const { home, agent, native, logs, options } = claude(t)
+  setup.install(agent, PRODUCTION, { ...options, log() {} })
   const root = setup.target(agent, home)
   const file = path.join(root, 'plugins', 'in-parallel', 'mcp.json')
   const execute = native.execute
@@ -913,8 +905,7 @@ test('uninstall refuses a file changed after its check and keeps it', t => {
     if (args[1] === 'marketplace' && args[2] === 'remove') fs.writeFileSync(file, 'edited')
     return execute(command, args, options)
   }
-  const logs = []
-  assert.throws(() => setup.uninstall(agent, { home, cwd: home, execute: native.execute, log: line => logs.push(line) }),
+  assert.throws(() => setup.uninstall(agent, options),
     new RegExp(`mcp\\.json changed after uninstall checked it; it was kept and uninstall stopped\\. To finish, keep your changed file elsewhere, then delete ${root.replace(/[.\\/]/g, '\\$&')} by hand\\. .+ holds every file as setup wrote it\\.`))
   assert.equal(fs.readFileSync(file, 'utf8'), 'edited')
   assert.ok(logs.join('\n').includes('backed up'))
@@ -931,28 +922,23 @@ function editDuringInventory(native, file) {
 }
 
 test('install refuses a copy changed after preflight and keeps it', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
+  const { home, agent, native, options } = claude(t)
   setup.install(agent, PRODUCTION, options)
   const file = path.join(setup.target(agent, home), 'plugins', 'in-parallel', 'mcp.json')
   editDuringInventory(native, file)
   native.calls.length = 0
-  assert.throws(() => setup.install(agent, PRODUCTION, { ...options, execute: native.execute }), /Installed files were changed/)
+  assert.throws(() => setup.install(agent, PRODUCTION, options), /Installed files were changed/)
   assert.equal(fs.readFileSync(file, 'utf8'), 'edited')
   assert.deepEqual(native.calls, [['plugin', 'list', '--json'], ['plugin', 'marketplace', 'list', '--json']])
 })
 
 test('uninstall refuses a copy changed before the native calls and unregisters nothing', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} })
+  const { home, agent, native, options } = claude(t)
+  setup.install(agent, PRODUCTION, options)
   const file = path.join(setup.target(agent, home), 'plugins', 'in-parallel', 'mcp.json')
   editDuringInventory(native, file)
   native.calls.length = 0
-  assert.throws(() => setup.uninstall(agent, { home, cwd: home, execute: native.execute, log() {} }), /Installed files were changed/)
+  assert.throws(() => setup.uninstall(agent, options), /Installed files were changed/)
   assert.equal(fs.readFileSync(file, 'utf8'), 'edited')
   assert.deepEqual(native.calls, [['plugin', 'list', '--json'], ['plugin', 'marketplace', 'list', '--json']])
   assert.equal(native.plugins.length, 1)
@@ -1002,15 +988,11 @@ test('Codex doctor reads single-quoted URLs and reports other config.toml forms 
 })
 
 test('setup run inside a project with its own copy names that copy and the one command that removes it', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
+  const { home, agent, native, options } = claude(t, 'work/app/nested')
   const app = path.join(home, 'work', 'app')
-  const cwd = path.join(app, 'nested')
-  fs.mkdirSync(cwd, { recursive: true })
   native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: app }]
-  for (const dir of [app, cwd]) {
-    assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: dir, env: {}, execute: native.execute, log() {} }),
+  for (const dir of [app, options.cwd]) {
+    assert.throws(() => setup.install(agent, PRODUCTION, { ...options, cwd: dir }),
       { message: `Found in-parallel@team installed at project scope for ${app}. Setup did not install it. Setup changes only your user installation and leaves it in place. To remove it, run: cd ${JSON.stringify(app)} && claude plugin uninstall in-parallel@team --scope project` })
   }
   assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team'])
@@ -1018,37 +1000,29 @@ test('setup run inside a project with its own copy names that copy and the one c
 })
 
 test('setup run outside a project with its own copy installs for the user and notes that copy can stay', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const app = path.join(home, 'work', 'app')
   // A sibling whose name starts with the project's is still outside it.
-  const cwd = path.join(home, 'work', 'app-other')
+  const { home, agent, native, logs, options } = claude(t, 'work/app-other')
+  const app = path.join(home, 'work', 'app')
   fs.mkdirSync(app, { recursive: true })
-  fs.mkdirSync(cwd, { recursive: true })
   const copy = { id: 'in-parallel@team', scope: 'local', enabled: true, projectPath: app }
   native.plugins = [copy]
-  const logs = []
-  setup.install(agent, PRODUCTION, { home, cwd, env: {}, execute: native.execute, log: line => logs.push(line) })
+  setup.install(agent, PRODUCTION, options)
   assert.ok(logs.join('\n').includes(`Found in-parallel@team installed at local scope for ${app}. Setup did not install it. It does not need to be removed; it can be left in place. To remove it, run: cd ${JSON.stringify(app)} && claude plugin uninstall in-parallel@team --scope local`), logs.join('\n'))
   assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team', setup.PLUGIN])
   assert.ok(!native.calls.some(args => args[1] === 'uninstall'))
   // Rerunning updates the user copy and still leaves the project copy alone.
-  setup.install(agent, PRODUCTION, { home, cwd, env: {}, execute: native.execute, log() {} })
+  setup.install(agent, PRODUCTION, { ...options, log() {} })
   assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team', setup.PLUGIN])
-  assert.doesNotThrow(() => setup.doctor(agent, { home, cwd, env: {}, execute: native.execute, log() {} }))
+  assert.doesNotThrow(() => setup.doctor(agent, { ...options, log() {} }))
 })
 
 test('replacements ignore other projects\' copies and verify only the copies that apply here', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
+  const { home, agent, native, options } = claude(t)
   const app = path.join(home, 'work', 'app')
   fs.mkdirSync(app, { recursive: true })
   const old = { id: 'in-parallel@in-parallel', scope: 'user', enabled: true }
   const copy = { id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: app }
   native.plugins = [old, copy]
-  const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
   assert.throws(() => setup.install(agent, PRODUCTION, options),
     error => error instanceof setup.ReplacementRequired && error.plugins.join() === old.id)
   setup.install(agent, PRODUCTION, { ...options, replace: [old.id] })
@@ -1109,11 +1083,7 @@ for (const agent of setup.AGENTS) {
 }
 
 test('Claude doctor reports a project-scope copy beside the user install as conflicting with its remedy', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const logs = []
-  const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+  const { home, agent, native, logs, options } = claude(t)
   setup.install(agent, PRODUCTION, { ...options, log() {} })
   native.plugins.push({ id: 'in-parallel@team', scope: 'project', enabled: true })
   assert.throws(() => setup.doctor(agent, options), /claude plugin uninstall in-parallel@team --scope project/)
@@ -1146,11 +1116,7 @@ test('doctor lists every location before a changed-files error and names the cha
 })
 
 test('Claude doctor lists the setup copy and a project copy in another project, each with its scope and path, without failing', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
-  const logs = []
-  const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+  const { home, agent, native, logs, options } = claude(t)
   setup.install(agent, PRODUCTION, { ...options, log() {} })
   native.plugins[0].installPath = '/cache/in-parallel-setup/in-parallel/1'
   native.plugins.push({ id: 'in-parallel@in-parallel-e2e', scope: 'project', enabled: false,
@@ -1277,12 +1243,9 @@ test('doctor does not print a credentialed endpoint from a hand-edited receipt',
 })
 
 test('Claude doctor without a setup install says a project copy was not installed by setup and how to remove it', t => {
-  const home = fixture(t)
-  const agent = setup.AGENTS[0]
-  const native = host(agent, home)
+  const { agent, native, logs, options } = claude(t)
   native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: '/work/app' }]
-  const logs = []
-  setup.doctor(agent, { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) })
+  setup.doctor(agent, options)
   const report = logs.join('\n')
   assert.ok(report.includes('  Found in-parallel@team installed at project scope for /work/app. Setup did not install it. It does not need to be removed; it can be left in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project'), report)
   assert.doesNotMatch(report, /Setup-managed MCP endpoint/)
