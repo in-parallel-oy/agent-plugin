@@ -17,11 +17,12 @@ const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
-const CODE_CALL = /report_back\s*\(\s*\{[^}]*?\bevent\b["'\\\s:]{0,8}(started|note|finished)\b[^}]*\}/g
+const CODE_CALL = /report_back\s*\(/g
+const CODE_EVENT = /\bevent\b["'\s:]{0,8}(started|note|finished)\b/
 // A report names its item with a link or an id; one without records nothing.
-const NAMES_ITEM = /\b(link|item_id)\b["'\\\s]{0,4}:/
-// Links reported in results: [{ label, url }]. Every link after the results key counts.
-const RESULTS = /\bresults\b["'\\]{0,2}\s*:/
+const NAMES_ITEM = /\b(link|item_id)\b["'\s]{0,4}:/
+// Links reported in code mode's results: [{ label, url }].
+const CODE_RESULTS = /\bresults\b["']?\s*:\s*(?=\[)/
 const RESULT_URL = /https?:\/\/[^\s"'\\,)}\]]+/g
 const MAX_TRANSCRIPT = 32 * 1024 * 1024
 
@@ -65,6 +66,40 @@ const parseArgs = value => {
   try { return JSON.parse(value) } catch { return null }
 }
 
+// The text from an opening bracket at start to its matching close, skipping
+// brackets inside strings.
+function balanced(text, start) {
+  let depth = 0
+  let quote = null
+  for (let index = start; index < text.length; index++) {
+    const char = text[index]
+    if (quote) {
+      if (char === '\\') index++
+      else if (char === quote) quote = null
+    } else if (`'"\``.includes(char)) quote = char
+    else if ('([{'.includes(char)) depth++
+    else if (')]}'.includes(char) && --depth === 0) return text.slice(start, index + 1)
+  }
+  return text.slice(start)
+}
+
+const resultUrls = results => Array.isArray(results)
+  ? results.map(result => result?.url).filter(url => typeof url === 'string')
+  : []
+
+function codeCalls(input) {
+  const calls = []
+  for (const match of input.matchAll(CODE_CALL)) {
+    const call = balanced(input, match.index + match[0].length - 1)
+    const event = call.match(CODE_EVENT)
+    if (!event) continue
+    const results = call.match(CODE_RESULTS)
+    const urls = results ? balanced(call, results.index + results[0].length).match(RESULT_URL) || [] : []
+    calls.push({ event: event[1], item: NAMES_ITEM.test(call), urls })
+  }
+  return calls
+}
+
 // report_back calls: structured tool calls (Claude Code, Codex MCP items) or
 // code that calls the tool (Codex code mode). Other text naming it is not a call.
 function reportCalls(node, found = [], depth = 0) {
@@ -76,9 +111,9 @@ function reportCalls(node, found = [], depth = 0) {
   const name = typeof node.name === 'string' ? node.name : typeof node.tool === 'string' ? node.tool : ''
   if (/(^|[_.:/])report_back$/.test(name)) {
     const args = parseArgs(node.input) || parseArgs(node.arguments) || {}
-    found.push({ event: args.event, item: Boolean(args.link || args.item_id), text: JSON.stringify(args) })
+    found.push({ event: args.event, item: Boolean(args.link || args.item_id), urls: resultUrls(args.results) })
   } else if (node.type === 'custom_tool_call' && typeof node.input === 'string') {
-    for (const match of node.input.matchAll(CODE_CALL)) found.push({ event: match[1], item: NAMES_ITEM.test(match[0]), text: match[0] })
+    found.push(...codeCalls(node.input))
   }
   for (const value of Object.values(node)) if (value && typeof value === 'object') reportCalls(value, found, depth + 1)
   return found
@@ -105,8 +140,7 @@ function scan(transcript) {
         // A start after a finish is new work on an item.
         if (call.event === 'started' && (!state.sent || state.finished)) Object.assign(state, { sent: true, finished: false })
         if (call.event === 'finished' && state.sent) state.finished = true
-        const results = call.text.search(RESULTS)
-        if (results >= 0) for (const match of call.text.slice(results).matchAll(RESULT_URL)) state.reported.add(match[0])
+        for (const url of call.urls) state.reported.add(url)
       }
     }
   }

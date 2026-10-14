@@ -76,6 +76,16 @@ test('pull request reminders stay quiet without an item or once the link is repo
   assert.equal(shell(transcript(t, [prompt(SEND), report('note', { results: [{ label: 'Docs', url: 'https://docs.acme.test/a' }, { label: 'Pull request', url: second }] })]), 'gh pr view', second), null)
   const codeReport = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${second}" }] })` } }
   assert.equal(shell(transcript(t, [codexPrompt(SEND), codeReport]), 'gh pr view', second), null)
+  const code = input => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input } })
+  const codeSecond = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Docs", url: "https://docs.acme.test/a" }, { label: "Pull request", url: "${second}" }] })`)
+  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeSecond]), 'gh pr view', second), null)
+  // A finish with results before the event still ends the item, so a later pull request is not for it.
+  const codeFinish = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", results: [{ label: "Pull request", url: "${PR}" }], event: "finished" })`)
+  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeFinish]), 'gh pr create --fill', 'https://github.com/acme/website/pull/43'), null)
+  // A link in the note is not a result, even when the note follows the results or says "results:".
+  const docs = { label: 'Docs', url: 'https://docs.acme.test/a' }
+  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { results: [docs], note: `PR at ${second}` })]), 'gh pr view', second))
+  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { note: `Test results: ${second}` })]), 'gh pr view', second))
   // A link in the note is not a result.
   assert.ok(shell(transcript(t, [prompt(SEND), report('note', { note: `The results are in ${second}` })]), 'gh pr view', second))
   const sent = transcript(t, [prompt(SEND)])
