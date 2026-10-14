@@ -269,27 +269,35 @@ function projectFolders(home, cwd) {
 // Inspect documented local files without connecting or reading CLI health output.
 // Session-only flags, managed policy and other checkouts still need runtime verification.
 // Returns every location checked: found, not found, or conflicting with a message.
-// Without a url (no setup-managed copy) an entry is only found or not found.
+// Without a url (no setup-managed copy) an entry is only found, not found or
+// unreadable: a file setup never relied on is reported, not an error.
+const UNREADABLE = Symbol('unreadable')
+
 function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), env = process.env, source = SOURCE } = {}) {
   const folders = projectFolders(home, cwd)
+  const unreadable = file => {
+    if (!url) return UNREADABLE
+    throw new Error(`Could not read MCP configuration at ${file}. Existing settings were preserved.`)
+  }
   const text = file => {
     try { return fs.readFileSync(file, 'utf8') } catch (error) {
-      if (error.code === 'ENOENT') return null
-      throw new Error(`Could not read MCP configuration at ${file}. Existing settings were preserved.`)
+      return error.code === 'ENOENT' ? null : unreadable(file)
     }
   }
   const read = file => {
     const content = text(file)
     if (content === null) return {}
+    if (content === UNREADABLE) return content
     try {
       const config = JSON.parse(content)
       if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Invalid configuration')
       return config
     } catch {
-      throw new Error(`Could not read MCP configuration at ${file}. Existing settings were preserved.`)
+      return unreadable(file)
     }
   }
   const check = (config, location) => {
+    if (config === UNREADABLE) return { location, status: 'unreadable' }
     const servers = config?.mcpServers || {}
     if ('in-parallel' in servers) return { location, status: 'conflicting', message: `${agent.name}: legacy In Parallel MCP entry named in-parallel in ${location}. Rename it to in_parallel or remove it to use the plugin-provided connection, then rerun setup. Existing settings were preserved.` }
     const server = servers.in_parallel
@@ -307,7 +315,7 @@ function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), en
     const config = read(file)
     locations.push(check(config, `${file} (user scope)`))
     for (const folder of folders) {
-      locations.push(check(config.projects?.[folder], `${file} (local scope for ${folder})`))
+      locations.push(check(config === UNREADABLE ? config : config.projects?.[folder], `${file} (local scope for ${folder})`))
       const project = path.join(folder, '.mcp.json')
       // This checkout's file is the distribution template, rewritten by bundle().
       if (path.resolve(project) !== path.resolve(source, '.mcp.json')) locations.push(check(read(project), `${project} (project scope)`))
@@ -325,10 +333,21 @@ function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), en
     const files = [[personal, 'user scope'], ...folders.map(folder => [path.join(folder, '.codex', 'config.toml'), 'project scope'])]
     for (const [file, scope] of files.filter(([file], index) => index === 0 || file !== personal)) {
       const location = `${file} (${scope})`
-      const table = (text(file) || '').split(/^\[/m).find(section => /^mcp_servers\.("?)in_parallel\1\]/.test(section))
-      if (table === undefined) { locations.push({ location, status: 'not found' }); continue }
+      const content = text(file)
+      if (content === UNREADABLE) { locations.push({ location, status: 'unreadable' }); continue }
+      const sections = (content || '').split(/^\[/m)
+      const table = sections.find(section => /^mcp_servers\.(["']?)in_parallel\1\]/.test(section))
+      if (table === undefined) {
+        // Dotted keys and inline tables name the server too; only the table form is parsed.
+        const named = /^\s*mcp_servers\.(["']?)in_parallel\1\s*[.=]/m.test(sections[0]) ||
+          sections.some(section => /^mcp_servers\]/.test(section) && /^\s*(["']?)in_parallel\1\s*[.=]/m.test(section))
+        locations.push({ location, status: named ? 'present (not parsed)' : 'not found' })
+        continue
+      }
+      const value = table.match(/^\s*url\s*=\s*(?:"([^"]*)"|'([^']*)')\s*(?:#.*)?$/m)
+      if (!value) { locations.push({ location, status: url ? 'present (not parsed)' : 'found' }); continue }
       let matches = !url
-      try { matches ||= endpoint(table.match(/^\s*url\s*=\s*"([^"]*)"/m)?.[1]) === url } catch {}
+      try { matches ||= endpoint(value[1] ?? value[2]) === url } catch {}
       locations.push({ location, status: matches ? 'found' : 'conflicting' })
     }
   }
@@ -471,7 +490,8 @@ function uninstall(agent, { home = os.homedir(), cwd, execute = run, dryRun = fa
     for (const name of names) {
       const file = path.join(root, name)
       if (digest(fs.readFileSync(file)) !== expected[name]) {
-        throw new Error(`${file} changed after uninstall checked it; it was kept and uninstall stopped. A backup of every file is at ${backup}.`)
+        // The native registrations are gone, so neither setup nor uninstall can finish this copy.
+        throw new Error(`${file} changed after uninstall checked it; it was kept and uninstall stopped. To finish, keep your changed file elsewhere, then delete ${root} by hand. ${backup} holds every file as setup wrote it.`)
       }
       fs.rmSync(file)
       lines.push(`${agent.name}: removed ${file}`)

@@ -914,9 +914,89 @@ test('uninstall refuses a file changed after its check and keeps it', t => {
   }
   const logs = []
   assert.throws(() => setup.uninstall(agent, { home, cwd: home, execute: native.execute, log: line => logs.push(line) }),
-    /mcp\.json changed after uninstall checked it; it was kept and uninstall stopped\. A backup of every file is at /)
+    new RegExp(`mcp\\.json changed after uninstall checked it; it was kept and uninstall stopped\\. To finish, keep your changed file elsewhere, then delete ${root.replace(/[.\\/]/g, '\\$&')} by hand\\. .+ holds every file as setup wrote it\\.`))
   assert.equal(fs.readFileSync(file, 'utf8'), 'edited')
   assert.ok(logs.join('\n').includes('backed up'))
+})
+
+// Preflight reads the copy before asking the client for its inventory, so a file
+// changed during that call is changed after the check and before any write.
+function editDuringInventory(native, file) {
+  const execute = native.execute
+  native.execute = (command, args, options) => {
+    if (args.join(' ') === 'plugin marketplace list --json') fs.writeFileSync(file, 'edited')
+    return execute(command, args, options)
+  }
+}
+
+test('install refuses a copy changed after preflight and keeps it', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
+  setup.install(agent, PRODUCTION, options)
+  const file = path.join(setup.target(agent, home), 'plugins', 'in-parallel', 'mcp.json')
+  editDuringInventory(native, file)
+  native.calls.length = 0
+  assert.throws(() => setup.install(agent, PRODUCTION, { ...options, execute: native.execute }), /Installed files were changed/)
+  assert.equal(fs.readFileSync(file, 'utf8'), 'edited')
+  assert.deepEqual(native.calls, [['plugin', 'list', '--json'], ['plugin', 'marketplace', 'list', '--json']])
+})
+
+test('uninstall refuses a copy changed before the native calls and unregisters nothing', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} })
+  const file = path.join(setup.target(agent, home), 'plugins', 'in-parallel', 'mcp.json')
+  editDuringInventory(native, file)
+  native.calls.length = 0
+  assert.throws(() => setup.uninstall(agent, { home, cwd: home, execute: native.execute, log() {} }), /Installed files were changed/)
+  assert.equal(fs.readFileSync(file, 'utf8'), 'edited')
+  assert.deepEqual(native.calls, [['plugin', 'list', '--json'], ['plugin', 'marketplace', 'list', '--json']])
+  assert.equal(native.plugins.length, 1)
+})
+
+for (const agent of setup.AGENTS) {
+  test(`${agent.name}: doctor without a setup install reports an unreadable MCP file and passes`, t => {
+    const home = fixture(t)
+    const native = host(agent, home)
+    const logs = []
+    const file = { claude: path.join(home, '.claude.json'), cursor: path.join(home, '.cursor', 'mcp.json'), codex: path.join(home, '.codex', 'config.toml') }[agent.id]
+    // Codex config is read as text, so only an unreadable file (here a folder) fails it.
+    if (agent.id === 'codex') fs.mkdirSync(file, { recursive: true })
+    else { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, '{ not json') }
+    setup.doctor(agent, { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) })
+    const report = logs.join('\n')
+    assert.ok(report.includes(`${file} (user scope): unreadable`), report)
+    assert.match(report, /no setup-managed installation/)
+    assert.equal(fs.existsSync(path.join(home, '.in-parallel', 'setup', 'last-check.json')), false)
+  })
+}
+
+test('Codex doctor reads single-quoted URLs and reports other config.toml forms as not parsed', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS.find(item => item.id === 'codex')
+  const native = host(agent, home)
+  const logs = []
+  const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+  setup.install(agent, PRODUCTION, { ...options, log() {} })
+  const file = path.join(home, '.codex', 'config.toml')
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  for (const [content, status] of [
+    [`[mcp_servers.in_parallel]\nurl = '${PRODUCTION}'\n`, 'found'],
+    [`[mcp_servers.'in_parallel']\nurl = 'https://elsewhere.test/mcp'\n`, 'conflicting'],
+    ['[mcp_servers.in_parallel]\nurl = """\nhttps://elsewhere.test/mcp"""\n', 'present (not parsed)'],
+    [`[mcp_servers]\nin_parallel.url = "${PRODUCTION}"\n`, 'present (not parsed)'],
+    [`[mcp_servers]\nin_parallel = { url = "${PRODUCTION}" }\n`, 'present (not parsed)'],
+    [`mcp_servers.in_parallel.url = "${PRODUCTION}"\n`, 'present (not parsed)'],
+    ['[mcp_servers.other]\nurl = "https://elsewhere.test/mcp"\n', 'not found'],
+  ]) {
+    fs.writeFileSync(file, content)
+    logs.length = 0
+    setup.doctor(agent, options)
+    assert.ok(logs.join('\n').includes(`${file} (user scope): ${status}\n`), `${content}\n${logs.join('\n')}`)
+  }
 })
 
 test('setup names the project-scope copy it found and the one command that removes it', t => {
