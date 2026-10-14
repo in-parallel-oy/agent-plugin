@@ -70,10 +70,6 @@ why you are stopping without reporting.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
-8. **Release.** To drop your start without claiming any work, report
-   `event: "released"`: after a handover, after "start this and tell me your
-   plan" when no work follows, or when the person stops you. The status does
-   not change, and it answers the stop reminder for the item.
 7. **Wait.** When you stop to wait for the person, such as for an approval
    or an answer, report `event: "note"` with `waiting: true` and a `note`
    saying what you wait for. That answers the stop reminder for the item.
@@ -82,6 +78,13 @@ why you are stopping without reporting.
    stop reminder says it is now someone else's and the person you act for no
    longer owns it, tell the person, release your start with
    `event: "released"` and stop reporting on it.
+8. **Release.** To drop your start without claiming any work, report
+   `event: "released"`: after a handover, after "start this and tell me your
+   plan" when no work follows, or when the person stops you without asking
+   to pause the item or drop it back to To do. The status does not change,
+   so a To do you started stays in Doing, and it answers the stop reminder
+   for the item. When the person asks to pause or to drop the item, use
+   Pause or Put down instead.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the

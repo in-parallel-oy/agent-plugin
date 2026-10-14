@@ -10,9 +10,10 @@ workspaces.
 
 When the person asks you to update or report to In Parallel about work done or
 in progress, such as "Update In Parallel" after a task, load the
-`in-parallel-agent-work` skill, if installed, and follow it: it reports the work
-with `report_back`. That is not publishing: do not look up workspaces, search
-pages or ask where to publish.
+`in-parallel-agent-work` skill, if installed, and follow it. Without it, call
+`report_back` as its tool description says. Either way that reports the work
+on its item and is not publishing: do not look up workspaces, search pages or
+ask where to publish.
 
 ## Find context
 

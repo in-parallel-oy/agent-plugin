@@ -40,7 +40,9 @@ once you work on it.
    owner, or a stop reminder says it is now someone else's, tell the person,
    report `event: "released"` and stop reporting on it. When the person stops
    you, or you only gave a plan and no work follows, report `event: "released"`:
-   it drops your start without claiming work. When the person says not to
+   it drops your start without claiming work and leaves the To do in Doing.
+   When the person asks to pause or to drop the To do, pause or put it down
+   as that skill says instead. When the person says not to
    report, do not report, and when you stop, tell them why you stop without
    reporting. When the
    work looks incomplete, such as a TODO left or a step not done, ask the
