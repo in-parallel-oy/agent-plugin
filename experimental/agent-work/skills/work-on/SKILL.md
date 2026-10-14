@@ -28,8 +28,9 @@ once you work on it.
    `limit`.
 3. **Start.** Read the picked To do with `get_action_item`, then call
    `report_back` with `event: "started"` and the To do: its `in-parallel://`
-   link as `link` when you have one, otherwise its id as `item_id`. When step
-   2 already started it with `ask: true`, read it now.
+   link as `link` when you have one, otherwise its id as `item_id`. A To do
+   moves to Doing. Read it again before any later start. When step 2 already
+   started it with `ask: true`, read it now.
 4. **Work.** Do what the To do describes, with the person, and report as the
    `in-parallel-agent-work` skill says, from its Report step 2 on: notes,
    re-reading before finishing, finishing with `results`, and when to put

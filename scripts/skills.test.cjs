@@ -24,13 +24,24 @@ const RULES = {
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     '**Start.** Read the picked To do with `get_action_item`, then call `report_back` with `event: "started"`',
+    'Read it again before any later start',
     'report as the `in-parallel-agent-work` skill says, from its Report step 2 on',
   ],
 }
 
+// Wording a skill must not bring back.
+const RETIRED = {
+  'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
+    'usually the person you are talking to',
+  ],
+}
+
+const read = file => fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8').replace(/\s+/g, ' ')
+
 for (const [file, phrases] of Object.entries(RULES)) {
   test(`${file} keeps its rules`, () => {
-    const text = fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8').replace(/\s+/g, ' ')
+    const text = read(file)
     for (const phrase of phrases) assert.ok(text.includes(phrase), phrase)
+    for (const phrase of RETIRED[file] ?? []) assert.ok(!text.includes(phrase), `retired: ${phrase}`)
   })
 }
