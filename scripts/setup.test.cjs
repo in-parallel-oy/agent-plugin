@@ -1010,15 +1010,59 @@ test('Codex doctor reads single-quoted URLs and reports other config.toml forms 
   }
 })
 
-test('setup names the project-scope copy it found and the one command that removes it', t => {
+test('setup run inside a project with its own copy names that copy and the one command that removes it', t => {
   const home = fixture(t)
   const agent = setup.AGENTS[0]
   const native = host(agent, home)
-  native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: '/work/app' }]
-  assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: home, env: {}, execute: native.execute, log() {} }),
-    { message: 'Found in-parallel@team installed at project scope for /work/app. Setup did not install it. Setup changes only your user installation and leaves it in place. To remove it, run: cd "/work/app" && claude plugin uninstall in-parallel@team --scope project' })
+  const app = path.join(home, 'work', 'app')
+  const cwd = path.join(app, 'nested')
+  fs.mkdirSync(cwd, { recursive: true })
+  native.plugins = [{ id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: app }]
+  for (const dir of [app, cwd]) {
+    assert.throws(() => setup.install(agent, PRODUCTION, { home, cwd: dir, env: {}, execute: native.execute, log() {} }),
+      { message: `Found in-parallel@team installed at project scope for ${app}. Setup did not install it. Setup changes only your user installation and leaves it in place. To remove it, run: cd ${JSON.stringify(app)} && claude plugin uninstall in-parallel@team --scope project` })
+  }
   assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team'])
   assert.equal(fs.existsSync(setup.target(agent, home)), false)
+})
+
+test('setup run outside a project with its own copy installs for the user and notes that copy can stay', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  const app = path.join(home, 'work', 'app')
+  // A sibling whose name starts with the project's is still outside it.
+  const cwd = path.join(home, 'work', 'app-other')
+  fs.mkdirSync(app, { recursive: true })
+  fs.mkdirSync(cwd, { recursive: true })
+  const copy = { id: 'in-parallel@team', scope: 'local', enabled: true, projectPath: app }
+  native.plugins = [copy]
+  const logs = []
+  setup.install(agent, PRODUCTION, { home, cwd, env: {}, execute: native.execute, log: line => logs.push(line) })
+  assert.ok(logs.join('\n').includes(`Found in-parallel@team installed at local scope for ${app}. Setup did not install it. It does not need to be removed; it can be left in place. To remove it, run: cd ${JSON.stringify(app)} && claude plugin uninstall in-parallel@team --scope local`), logs.join('\n'))
+  assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team', setup.PLUGIN])
+  assert.ok(!native.calls.some(args => args[1] === 'uninstall'))
+  // Rerunning updates the user copy and still leaves the project copy alone.
+  setup.install(agent, PRODUCTION, { home, cwd, env: {}, execute: native.execute, log() {} })
+  assert.deepEqual(native.plugins.map(plugin => plugin.id), ['in-parallel@team', setup.PLUGIN])
+  assert.doesNotThrow(() => setup.doctor(agent, { home, cwd, env: {}, execute: native.execute, log() {} }))
+})
+
+test('replacements ignore other projects\' copies and verify only the copies that apply here', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  const app = path.join(home, 'work', 'app')
+  fs.mkdirSync(app, { recursive: true })
+  const old = { id: 'in-parallel@in-parallel', scope: 'user', enabled: true }
+  const copy = { id: 'in-parallel@team', scope: 'project', enabled: true, projectPath: app }
+  native.plugins = [old, copy]
+  const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
+  assert.throws(() => setup.install(agent, PRODUCTION, options),
+    error => error instanceof setup.ReplacementRequired && error.plugins.join() === old.id)
+  setup.install(agent, PRODUCTION, { ...options, replace: [old.id] })
+  assert.deepEqual(native.plugins.map(plugin => plugin.id), [copy.id, setup.PLUGIN])
+  assert.ok(!native.calls.some(args => args[1] === 'uninstall' && args[2] === copy.id))
 })
 
 for (const agent of setup.AGENTS) {
@@ -1110,7 +1154,7 @@ test('doctor lists every location before a changed-files error and names the cha
   }
 })
 
-test('Claude doctor lists the setup copy and a project copy in another project, each with its scope and path', t => {
+test('Claude doctor lists the setup copy and a project copy in another project, each with its scope and path, without failing', t => {
   const home = fixture(t)
   const agent = setup.AGENTS[0]
   const native = host(agent, home)
@@ -1120,12 +1164,13 @@ test('Claude doctor lists the setup copy and a project copy in another project, 
   native.plugins[0].installPath = '/cache/in-parallel-setup/in-parallel/1'
   native.plugins.push({ id: 'in-parallel@in-parallel-e2e', scope: 'project', enabled: false,
     projectPath: '/work/e2e', installPath: '/cache/in-parallel-e2e/in-parallel/1' })
-  // The project copy is an error, raised only once every location is listed.
-  assert.throws(() => setup.doctor(agent, options), /cd "\/work\/e2e" && claude plugin uninstall in-parallel@in-parallel-e2e --scope project/)
+  // A copy for another project does not conflict with the user install: listed, with its remedy.
+  setup.doctor(agent, options)
   const report = logs.join('\n')
+  assert.ok(report.includes('  Found in-parallel@in-parallel-e2e installed at project scope for /work/e2e. Setup did not install it. It does not need to be removed; it can be left in place. To remove it, run: cd "/work/e2e" && claude plugin uninstall in-parallel@in-parallel-e2e --scope project'), report)
   assert.ok(report.includes(`Claude Code plugin registration (user scope): found: ${setup.PLUGIN} (files at /cache/in-parallel-setup/in-parallel/1)`), report)
   assert.ok(report.includes(`Claude Code plugin registration (project scope for ${home}): not found`), report)
-  assert.ok(report.includes('Claude Code plugin registration (project scope for /work/e2e): conflicting: in-parallel@in-parallel-e2e (files at /cache/in-parallel-e2e/in-parallel/1)'), report)
+  assert.ok(report.includes('Claude Code plugin registration (project scope for /work/e2e): found: in-parallel@in-parallel-e2e (files at /cache/in-parallel-e2e/in-parallel/1)'), report)
   assert.ok(report.includes('.claude.json (user scope): not found'), report)
 })
 

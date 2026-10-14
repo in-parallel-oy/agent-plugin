@@ -247,19 +247,35 @@ function projectScope(plugin, cwd, conflict = true) {
   return `Found ${pluginId(plugin)} installed at ${scope} scope for ${dir}. Setup did not install it. ${keep} To remove it, run: cd ${JSON.stringify(dir)} && claude plugin uninstall ${pluginId(plugin)} --scope ${scope}`
 }
 
+const real = dir => { try { return fs.realpathSync(dir) } catch { return path.resolve(dir) } }
+
+// A project or local copy applies to the folder setup runs in when that folder is
+// its project or inside it. A copy that names no project is taken to apply.
+function appliesHere(plugin, cwd) {
+  if (!plugin.projectPath) return true
+  const relative = path.relative(real(plugin.projectPath), real(cwd))
+  return relative === '' || (relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative))
+}
+
+const elsewhereProject = (agent, plugin, cwd) => agent.id === 'claude' && plugin.scope !== 'user' && !appliesHere(plugin, cwd)
+
 // The client's In Parallel copies and the setup marketplace, from its own inventory.
-function survey(agent, root, execute, receipt) {
+// others: project or local copies for other projects. They do not compete with a
+// user installation here, so they are reported, never replaced.
+function survey(agent, root, execute, receipt, cwd = process.cwd()) {
   const state = inventory(agent, execute)
   const existing = state.plugins.filter(plugin => pluginId(plugin).split('@')[0] === 'in-parallel')
-  const foreign = existing.filter(plugin => !receipt || pluginId(plugin) !== PLUGIN ||
+  const competing = existing.filter(plugin => !receipt || pluginId(plugin) !== PLUGIN ||
     (agent.id === 'claude' && plugin.scope !== 'user'))
+  const foreign = competing.filter(plugin => !elsewhereProject(agent, plugin, cwd))
+  const others = competing.filter(plugin => elsewhereProject(agent, plugin, cwd))
   const market = state.marketplaces.find(item => item.name === MARKETPLACE)
   let elsewhere = false
   if (market && receipt) {
     const location = agent.id === 'codex' ? market.root : market.path
     try { elsewhere = fs.realpathSync(location) !== fs.realpathSync(root) } catch { elsewhere = true }
   }
-  return { receipt, existing, foreign, market, elsewhere,
+  return { receipt, existing, foreign, others, market, elsewhere,
     installed: receipt ? existing.find(plugin => pluginId(plugin) === PLUGIN && (agent.id !== 'claude' || plugin.scope === 'user')) : undefined,
     registered: Boolean(market && receipt), replacements: foreign.map(pluginId) }
 }
@@ -269,13 +285,13 @@ const elsewhereError = agent => new Error(`The ${MARKETPLACE} marketplace points
 // keep: report other copies instead of refusing, for uninstall.
 function preflight(agent, root, execute = run, replace = [], { cwd = process.cwd(), keep = false } = {}) {
   const receipt = managed(root, agent)
-  const state = survey(agent, root, execute, receipt)
+  const state = survey(agent, root, execute, receipt, cwd)
   const { existing, foreign, market, replacements } = state
   const project = foreign.find(plugin => agent.id === 'claude' && plugin.scope !== 'user')
   if (project && !keep) throw new Error(projectScope(project, cwd))
   if (market && !receipt && !keep) throw new Error(`The ${MARKETPLACE} marketplace already exists in ${agent.name}; refusing to replace it.`)
   if (state.elsewhere) throw elsewhereError(agent)
-  if (!receipt && !keep && existing.some(plugin => pluginId(plugin) === PLUGIN)) {
+  if (!receipt && !keep && existing.some(plugin => pluginId(plugin) === PLUGIN && !elsewhereProject(agent, plugin, cwd))) {
     throw new Error(`Existing ${PLUGIN} has no setup receipt at ${root}. Remove that native installation before running setup again.`)
   }
   if (!keep && replacements.some(id => !replace.includes(id))) throw new ReplacementRequired(replacements)
@@ -474,9 +490,11 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
   const root = target(agent, home)
   const state = preflight(agent, root, execute, replace, { cwd })
   const prepared = bundle(agent, url, source)
+  const notes = state.others.map(plugin => projectScope(plugin, cwd || process.cwd(), false))
   if (dryRun) {
     log(`Would install ${agent.name} for this user at ${root}\nMCP: ${prepared.receipt.endpoint}`)
     if (state.replacements.length) log(`Would remove ${state.replacements.join(', ')} after verifying the new installation.`)
+    if (notes.length) log(notes.join('\n'))
     return
   }
   writeBundle(root, prepared.files, agent, state.receipt)
@@ -486,7 +504,7 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
       execute('claude', ['plugin', 'marketplace', 'update', MARKETPLACE])
       execute('claude', ['plugin', state.installed ? 'update' : 'install', PLUGIN, '--scope', 'user'])
     } else execute('codex', ['plugin', 'add', PLUGIN])
-    const result = inventory(agent, execute).plugins.find(plugin => pluginId(plugin) === PLUGIN)
+    const result = inventory(agent, execute).plugins.find(plugin => pluginId(plugin) === PLUGIN && (agent.id !== 'claude' || plugin.scope === 'user'))
     if (!result || result.version !== prepared.receipt.version || result.enabled !== true) {
       throw new Error(`${agent.name} did not report the expected enabled plugin version. Files are prepared at ${root}; rerun setup after checking the client.`)
     }
@@ -498,7 +516,8 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
         ...(agent.id === 'claude' ? ['--scope', 'user', '--keep-data'] : [])])
     }
     if (state.replacements.length) {
-      const remaining = inventory(agent, execute).plugins.filter(plugin => pluginId(plugin).split('@')[0] === 'in-parallel')
+      const remaining = inventory(agent, execute).plugins.filter(plugin => pluginId(plugin).split('@')[0] === 'in-parallel' &&
+        !elsewhereProject(agent, plugin, cwd || process.cwd()))
       if (remaining.length !== 1 || pluginId(remaining[0]) !== PLUGIN ||
           remaining[0].version !== prepared.receipt.version || remaining[0].enabled !== true) {
         throw new Error(`Replacement could not be verified. Run setup again to finish; do not activate duplicate copies.`)
@@ -507,14 +526,14 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
   }
   removeJournalCache(home, log)
   const { experimental } = prepared.receipt
-  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\n${features(prepared.receipt)}` : ''}\n${instructions(agent, hooked(prepared.receipt))}\nThen ${verify(experimental)}`)
+  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\n${features(prepared.receipt)}` : ''}${notes.map(note => `\n${note}`).join('')}\n${instructions(agent, hooked(prepared.receipt))}\nThen ${verify(experimental)}`)
 }
 
 function uninstall(agent, { home = os.homedir(), cwd, execute = run, dryRun = false, log = console.log } = {}) {
   const root = target(agent, home)
   const state = preflight(agent, root, execute, [], { cwd, keep: true })
   if (!dryRun) removeJournalCache(home, log)
-  const kept = state.foreign.filter(plugin => !(state.receipt && pluginId(plugin) === PLUGIN && plugin.scope === 'user'))
+  const kept = [...state.foreign, ...state.others].filter(plugin => !(state.receipt && pluginId(plugin) === PLUGIN && plugin.scope === 'user'))
     .map(plugin => agent.id === 'claude' && plugin.scope !== 'user'
       ? `${agent.name}: kept ${pluginId(plugin)}. ${projectScope(plugin, cwd || process.cwd(), false)}`
       : `${agent.name}: kept ${pluginId(plugin)}; setup did not install it.`)
@@ -603,12 +622,13 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
   try { receipt = managed(root, agent) } catch (error) { failure = error; receipt = readReceipt(root, agent) }
   let state = null
   if (agent.command) {
-    try { state = survey(agent, root, execute, receipt) } catch (error) { if (receipt) failure ||= error }
+    try { state = survey(agent, root, execute, receipt, cwd) } catch (error) { if (receipt) failure ||= error }
   }
   const locations = [...registrationLocations(agent, root, state, cwd), ...mcpLocations(agent, receipt?.endpoint, { home, cwd, env, source, report: true })]
-  // Without a setup-managed copy, a project copy is reported here; with one, it is an error below.
-  const notes = !receipt && agent.id === 'claude' && state
-    ? state.existing.filter(plugin => plugin.scope && plugin.scope !== 'user').map(plugin => projectScope(plugin, cwd, false)) : []
+  // Without a setup-managed copy, a project copy is reported here; with one, only a copy
+  // for another project is, and one for this folder is an error below.
+  const notes = agent.id === 'claude' && state
+    ? (receipt ? state.others : state.existing.filter(plugin => plugin.scope && plugin.scope !== 'user')).map(plugin => projectScope(plugin, cwd, false)) : []
   // A hand-edited receipt may hold a credential: print only an endpoint that passes validation.
   const shown = () => { try { return endpoint(receipt.endpoint) } catch { return 'not a valid MCP URL; not printed' } }
   log([`${agent.name}: checked`, ...(receipt ? [`  Setup-managed MCP endpoint: ${shown()}`] : []),
