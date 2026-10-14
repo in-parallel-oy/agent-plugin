@@ -252,7 +252,8 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
     const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
     for (const experimental of [['work-claims'], undefined]) {
       fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental }))
-      assert.throws(() => setup.doctor(agent, options), /retired work journal\. Run setup again/)
+      // The caller prefixes the client name; the message does not repeat it.
+      assert.throws(() => setup.doctor(agent, options), error => /^Installed with the retired work journal\. Run setup again/.test(error.message))
     }
     setup.install(agent, url, options)
     logs.length = 0
@@ -305,7 +306,7 @@ for (const agent of setup.AGENTS) {
       delete receipt.files[name]
     }
     fs.writeFileSync(file, JSON.stringify(receipt))
-    assert.throws(() => setup.doctor(agent, options), /installed with outdated files\. Run setup again/)
+    assert.throws(() => setup.doctor(agent, options), /Installed with outdated files\. Run setup again/)
     setup.install(agent, url, options)
     setup.doctor(agent, options)
 
@@ -316,7 +317,7 @@ for (const agent of setup.AGENTS) {
     fs.rmSync(path.join(root, skill))
     delete base.files[skill]
     fs.writeFileSync(file, JSON.stringify(base))
-    assert.throws(() => setup.doctor(agent, options), error => /installed with outdated files\./.test(error.message) && !/experimental/.test(error.message))
+    assert.throws(() => setup.doctor(agent, options), error => /Installed with outdated files\./.test(error.message) && !/experimental/.test(error.message))
 
     setup.uninstall(agent, options)
     assert.equal(fs.existsSync(root), false)
@@ -523,7 +524,10 @@ test('one client failure does not prevent other selected clients from installing
 
 test('noninteractive setup and unsupported agent flags fail before prompting; help works', () => {
   const run = args => spawnSync(process.execPath, [path.join(__dirname, 'setup.js'), ...args], { encoding: 'utf8', timeout: 5000 })
-  assert.equal(run(['--help']).status, 0)
+  const help = run(['--help'])
+  assert.equal(help.status, 0)
+  // Doctor is not read-only: it says what it writes and deletes.
+  assert.match(help.stdout, /doctor[\s\S]*last-check\.json[\s\S]*retired work journal cache/)
   const pipe = run([])
   assert.equal(pipe.status, 1)
   assert.match(pipe.stderr, /interactive terminal/)
@@ -672,7 +676,7 @@ for (const agent of setup.AGENTS.filter(agent => agent.command)) {
     assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Native removal failed/)
     native.failRemove = false
     native.ignoreRemove = true
-    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /replacement could not be verified/)
+    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Replacement could not be verified/)
     native.ignoreRemove = false
     setup.install(agent, 'http://localhost:54104/mcp', options)
     assert.deepEqual(native.plugins.map(plugin => plugin.pluginId || plugin.id).sort(), ['another-plugin@personal', setup.PLUGIN].sort())
@@ -797,7 +801,7 @@ for (const agent of [setup.AGENTS[0], setup.AGENTS[2]]) {
       fs.mkdirSync(path.dirname(file), { recursive: true })
       const original = JSON.stringify(config)
       fs.writeFileSync(file, original)
-      assert.throws(() => setup.install(agent, url, options), /conflicting or unverifiable In Parallel MCP entry/)
+      assert.throws(() => setup.install(agent, url, options), /Conflicting In Parallel MCP entry/)
       assert.equal(fs.readFileSync(file, 'utf8'), original)
       assert.equal(fs.existsSync(setup.target(agent, home)), false)
       assert.deepEqual(native.calls, [])
@@ -814,7 +818,7 @@ for (const agent of [setup.AGENTS[0], setup.AGENTS[2]]) {
     fs.writeFileSync(file, original)
     assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', {
       home, cwd: home, env: {}, execute: native.execute, log() {},
-    }), /legacy In Parallel MCP entry named in-parallel.*Rename it to in_parallel/)
+    }), /Legacy In Parallel MCP entry named in-parallel.*Rename it to in_parallel/)
     assert.equal(fs.readFileSync(file, 'utf8'), original)
     assert.equal(fs.existsSync(setup.target(agent, home)), false)
     assert.deepEqual(native.calls, [])
@@ -840,22 +844,22 @@ for (const agent of [setup.AGENTS[0], setup.AGENTS[2]]) {
       fs.writeFileSync(file, config('${UNSET_ENDPOINT:-http://localhost:54104/mcp}'))
       setup.doctor(agent, options)
       env.UNSET_ENDPOINT = ''
-      assert.throws(() => setup.doctor(agent, options), /conflicting or unverifiable/)
+      assert.throws(() => setup.doctor(agent, options), /Conflicting In Parallel MCP entry/)
       delete env.UNSET_ENDPOINT
       setup.doctor(agent, options)
     }
     fs.writeFileSync(file, config('https://production.test/mcp?token=do-not-print'))
     const before = native.calls.length
     assert.throws(() => setup.doctor(agent, options), error => {
-      assert.match(error.message, /conflicting or unverifiable In Parallel MCP entry/)
+      assert.match(error.message, /Conflicting In Parallel MCP entry/)
       assert.doesNotMatch(error.message, /do-not-print/)
       return true
     })
-    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /conflicting or unverifiable/)
+    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Conflicting In Parallel MCP entry/)
     assert.ok(native.calls.slice(before).every(args => args.includes('list')))
     assert.deepEqual(setup.managed(root, agent), receipt)
     fs.writeFileSync(file, config(agent.id === 'claude' ? '${UNSET_ENDPOINT}' : '${env:UNSET_ENDPOINT}'))
-    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /conflicting or unverifiable/)
+    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Conflicting In Parallel MCP entry/)
     fs.writeFileSync(file, '{invalid-json')
     assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Could not read MCP configuration/)
   })
@@ -985,7 +989,7 @@ test('Codex doctor reads single-quoted URLs and reports other config.toml forms 
   fs.mkdirSync(path.dirname(file), { recursive: true })
   for (const [content, status] of [
     [`[mcp_servers.in_parallel]\nurl = '${PRODUCTION}'\n`, 'found'],
-    [`[mcp_servers.'in_parallel']\nurl = 'https://elsewhere.test/mcp'\n`, 'conflicting'],
+    [`[mcp_servers.'in_parallel']\nurl = 'https://elsewhere.test/mcp'\n`, 'conflicting: it points to a different server than the one setup installed'],
     ['[mcp_servers.in_parallel]\nurl = """\nhttps://elsewhere.test/mcp"""\n', 'present (not parsed)'],
     [`[mcp_servers]\nin_parallel.url = "${PRODUCTION}"\n`, 'present (not parsed)'],
     [`[mcp_servers]\nin_parallel = { url = "${PRODUCTION}" }\n`, 'present (not parsed)'],
@@ -1072,4 +1076,69 @@ test('Claude doctor reports a project-scope copy beside the user install as conf
   native.plugins.push({ id: 'in-parallel@team', scope: 'project', enabled: true })
   assert.throws(() => setup.doctor(agent, options), /claude plugin uninstall in-parallel@team --scope project/)
   assert.ok(logs.join('\n').includes(`Claude Code plugin registration (project scope for ${home}): conflicting: in-parallel@team`))
+})
+
+test('doctor lists every location before a changed-files error and names the changed files', t => {
+  const home = fixture(t)
+  for (const agent of setup.AGENTS) {
+    const native = host(agent, home)
+    const logs = []
+    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+    setup.install(agent, PRODUCTION, { ...options, log() {} })
+    const root = setup.target(agent, home)
+    const skill = Object.keys(setup.managed(root, agent).files).find(name => name.endsWith('SKILL.md'))
+    fs.appendFileSync(path.join(root, skill), 'edited')
+    fs.writeFileSync(path.join(root, 'custom.txt'), 'mine')
+    assert.throws(() => setup.doctor(agent, options), error =>
+      error.message.includes(`Installed files were changed in ${root} (changed: ${skill}; added: custom.txt)`))
+    const report = logs.join('\n')
+    assert.match(report, new RegExp(`^${agent.name}: checked`))
+    assert.ok(report.includes('(user scope): not found'), report)
+    if (agent.command) assert.ok(report.includes(`plugin registration (user scope): found: ${setup.PLUGIN}`), report)
+  }
+})
+
+test('Claude doctor lists the setup copy and a project copy in another project, each with its scope and path', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS[0]
+  const native = host(agent, home)
+  const logs = []
+  const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
+  setup.install(agent, PRODUCTION, { ...options, log() {} })
+  native.plugins[0].installPath = '/cache/in-parallel-setup/in-parallel/1'
+  native.plugins.push({ id: 'in-parallel@in-parallel-e2e', scope: 'project', enabled: false,
+    projectPath: '/work/e2e', installPath: '/cache/in-parallel-e2e/in-parallel/1' })
+  // The project copy is an error, raised only once every location is listed.
+  assert.throws(() => setup.doctor(agent, options), /cd "\/work\/e2e" && claude plugin uninstall in-parallel@in-parallel-e2e --scope project/)
+  const report = logs.join('\n')
+  assert.ok(report.includes(`Claude Code plugin registration (user scope): found: ${setup.PLUGIN} (files at /cache/in-parallel-setup/in-parallel/1)`), report)
+  assert.ok(report.includes(`Claude Code plugin registration (project scope for ${home}): not found`), report)
+  assert.ok(report.includes('Claude Code plugin registration (project scope for /work/e2e): conflicting: in-parallel@in-parallel-e2e (files at /cache/in-parallel-e2e/in-parallel/1)'), report)
+  assert.ok(report.includes('.claude.json (user scope): not found'), report)
+})
+
+test('Cursor doctor says what a conflicting MCP entry conflicts with and why', t => {
+  const home = fixture(t)
+  const agent = setup.AGENTS.find(item => item.id === 'cursor')
+  const logs = []
+  const options = { home, cwd: home, env: {}, log: line => logs.push(line) }
+  setup.install(agent, PRODUCTION, { ...options, log() {} })
+  const file = path.join(home, '.cursor', 'mcp.json')
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  for (const [server, reason] of [
+    [{ url: 'https://elsewhere.test/mcp' }, 'it points to a different server than the one setup installed'],
+    [{ command: 'npx', args: ['in-parallel-mcp'] }, 'it starts a local command instead of connecting to a URL'],
+    [{ url: '${env:UNSET_ENDPOINT}' }, 'its URL uses a variable that is not set'],
+    [{ url: `${PRODUCTION}?token=secret` }, 'its URL is empty or not a plain HTTPS MCP URL'],
+  ]) {
+    fs.writeFileSync(file, JSON.stringify({ mcpServers: { in_parallel: server } }))
+    logs.length = 0
+    assert.throws(() => setup.doctor(agent, options), error => {
+      assert.ok(error.message.startsWith(`Conflicting In Parallel MCP entry in ${file} (user scope): ${reason}`), error.message)
+      assert.match(error.message, /same name, in_parallel, as the connection the In Parallel plugin brings, so Cursor may connect through this entry instead/)
+      assert.doesNotMatch(error.message, /secret|elsewhere/)
+      return true
+    })
+    assert.ok(logs.join('\n').includes(`${file} (user scope): conflicting: ${reason}`), logs.join('\n'))
+  }
 })
