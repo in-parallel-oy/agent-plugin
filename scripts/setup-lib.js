@@ -174,7 +174,7 @@ function bundle(agent, url, source = SOURCE, experimental = experimentalFor(url)
   return { files: { ...sorted, [RECEIPT]: json(receipt) }, receipt }
 }
 
-function writeBundle(root, files, agent) {
+function writeBundle(root, files, agent, expected = null) {
   fs.mkdirSync(path.dirname(root), { recursive: true, mode: 0o700 })
   // Cursor discovers each directory inside plugins/local. Keep incomplete and
   // previous bundles outside that directory, while retaining atomic renames.
@@ -189,6 +189,10 @@ function writeBundle(root, files, agent) {
       const file = path.join(stage, name)
       fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
       fs.writeFileSync(file, content, { mode: 0o600 })
+    }
+    // Compare and swap: the copy being replaced must still be the one preflight checked.
+    if (JSON.stringify(managed(root, agent)) !== JSON.stringify(expected)) {
+      throw new Error(`${root} changed while setup was running. Nothing was replaced; run setup again.`)
     }
     if (fs.existsSync(root)) fs.renameSync(root, backup)
     try { fs.renameSync(stage, root) } catch (error) {
@@ -209,30 +213,37 @@ function inventory(agent, execute = run) {
   return { plugins: pluginRows, marketplaces: marketplaceRows }
 }
 
-function preflight(agent, root, execute = run, replace = []) {
+// Setup acts on the user scope only. A copy at project or local scope belongs to
+// that project: report it with the one command that removes it, never touch it.
+function projectScope(plugin, cwd) {
+  const scope = plugin.scope || 'project'
+  const dir = plugin.projectPath || cwd
+  return `Found ${pluginId(plugin)} installed at ${scope} scope for ${dir}. Setup changes only your user installation and leaves it in place. To remove it, run: cd ${JSON.stringify(dir)} && claude plugin uninstall ${pluginId(plugin)} --scope ${scope}`
+}
+
+// keep: report other copies instead of refusing, for uninstall and doctor.
+function preflight(agent, root, execute = run, replace = [], { cwd = process.cwd(), keep = false } = {}) {
   const receipt = managed(root, agent)
   const state = inventory(agent, execute)
   const existing = state.plugins.filter(plugin => pluginId(plugin).split('@')[0] === 'in-parallel')
   const foreign = existing.filter(plugin => !receipt || pluginId(plugin) !== PLUGIN ||
     (agent.id === 'claude' && plugin.scope !== 'user'))
   const project = foreign.find(plugin => agent.id === 'claude' && plugin.scope !== 'user')
-  if (project) {
-    throw new Error(`Existing ${project.scope || 'unknown'}-scope installation ${pluginId(project)} is outside user setup. Remove it from its project with: claude plugin uninstall ${pluginId(project)} --scope ${project.scope || 'project'}`)
-  }
+  if (project && !keep) throw new Error(projectScope(project, cwd))
   const market = state.marketplaces.find(item => item.name === MARKETPLACE)
-  if (market && !receipt) throw new Error(`The ${MARKETPLACE} marketplace already exists in ${agent.name}; refusing to replace it.`)
-  if (market) {
+  if (market && !receipt && !keep) throw new Error(`The ${MARKETPLACE} marketplace already exists in ${agent.name}; refusing to replace it.`)
+  if (market && receipt) {
     const location = agent.id === 'codex' ? market.root : market.path
     let matches = false
     try { matches = fs.realpathSync(location) === fs.realpathSync(root) } catch {}
     if (!matches) throw new Error(`The ${MARKETPLACE} marketplace points elsewhere in ${agent.name}; refusing to change it.`)
   }
-  if (!receipt && existing.some(plugin => pluginId(plugin) === PLUGIN)) {
+  if (!receipt && !keep && existing.some(plugin => pluginId(plugin) === PLUGIN)) {
     throw new Error(`Existing ${PLUGIN} has no setup receipt at ${root}. Remove that native installation before running setup again.`)
   }
   const replacements = foreign.map(pluginId)
-  if (replacements.some(id => !replace.includes(id))) throw new ReplacementRequired(replacements)
-  if (agent.id === 'claude' && replacements.length) {
+  if (!keep && replacements.some(id => !replace.includes(id))) throw new ReplacementRequired(replacements)
+  if (!keep && agent.id === 'claude' && replacements.length) {
     // Older clients can uninstall the same-named plugin from the wrong marketplace.
     const version = execute('claude', ['--version'], { capture: 'text' }).match(/^(\d+)\.(\d+)\.(\d+)(?:\s|$)/)
     const [major, minor, patch] = version ? version.slice(1).map(Number) : []
@@ -240,60 +251,112 @@ function preflight(agent, root, execute = run, replace = []) {
       throw new Error('Update Claude Code to 2.1.212 or newer before replacing a plugin from another marketplace. Existing installations were kept.')
     }
   }
-  return { receipt, installed: existing.find(plugin => pluginId(plugin) === PLUGIN),
-    registered: Boolean(market), replacements }
+  return { receipt, existing, foreign, installed: receipt ? existing.find(plugin => pluginId(plugin) === PLUGIN && (agent.id !== 'claude' || plugin.scope === 'user')) : undefined,
+    registered: Boolean(market && receipt), market, replacements }
 }
 
-// Inspect documented local files without connecting or reading CLI health output.
-// Session-only flags, managed policy and other checkouts still need runtime verification.
-function preflightMcp(agent, url, { home = os.homedir(), cwd = process.cwd(), env = process.env, source = SOURCE } = {}) {
-  if (!['claude', 'cursor'].includes(agent.id)) return
+// The folders a client reads project settings from: the current directory up to
+// the project root (the nearest .git) or the home folder.
+function projectFolders(home, cwd) {
   const folders = []
   for (let folder = path.resolve(cwd); ; folder = path.dirname(folder)) {
     folders.push(folder)
     if (folder === path.resolve(home) || fs.existsSync(path.join(folder, '.git')) || folder === path.dirname(folder)) break
   }
+  return folders
+}
+
+// Inspect documented local files without connecting or reading CLI health output.
+// Session-only flags, managed policy and other checkouts still need runtime verification.
+// Returns every location checked: found, not found, or conflicting with a message.
+// Without a url (no setup-managed copy) an entry is only found or not found.
+function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), env = process.env, source = SOURCE } = {}) {
+  const folders = projectFolders(home, cwd)
+  const text = file => {
+    try { return fs.readFileSync(file, 'utf8') } catch (error) {
+      if (error.code === 'ENOENT') return null
+      throw new Error(`Could not read MCP configuration at ${file}. Existing settings were preserved.`)
+    }
+  }
   const read = file => {
+    const content = text(file)
+    if (content === null) return {}
     try {
-      const config = JSON.parse(fs.readFileSync(file, 'utf8'))
+      const config = JSON.parse(content)
       if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Invalid configuration')
       return config
-    } catch (error) {
-      if (error.code === 'ENOENT') return {}
+    } catch {
       throw new Error(`Could not read MCP configuration at ${file}. Existing settings were preserved.`)
     }
   }
   const check = (config, location) => {
-    for (const [name, server] of Object.entries(config?.mcpServers || {})) {
-      if (name === 'in-parallel') throw new Error(`${agent.name}: legacy In Parallel MCP entry named in-parallel in ${location}. Rename it to in_parallel or remove it to use the plugin-provided connection, then rerun setup. Existing settings were preserved.`)
-      if (name !== 'in_parallel') continue
-      let matches = false
-      try {
-        const transport = agent.id === 'claude' ? ['http', 'streamable-http'] : [undefined, 'http', 'streamable-http']
-        const expanded = expandEndpoint(server.url, agent.id, env)
-        matches = transport.includes(server.type) && !server.command && endpoint(expanded) === url
-      } catch {}
-      if (!matches) throw new Error(`${agent.name}: conflicting or unverifiable In Parallel MCP entry in ${location}. Match it to the selected URL or remove that entry, then rerun setup. Existing settings were preserved; no URLs or credentials were printed.`)
-    }
+    const servers = config?.mcpServers || {}
+    if ('in-parallel' in servers) return { location, status: 'conflicting', message: `${agent.name}: legacy In Parallel MCP entry named in-parallel in ${location}. Rename it to in_parallel or remove it to use the plugin-provided connection, then rerun setup. Existing settings were preserved.` }
+    const server = servers.in_parallel
+    if (!server) return { location, status: 'not found' }
+    let matches = !url
+    try {
+      const transport = agent.id === 'claude' ? ['http', 'streamable-http'] : [undefined, 'http', 'streamable-http']
+      matches ||= transport.includes(server.type) && !server.command && endpoint(expandEndpoint(server.url, agent.id, env)) === url
+    } catch {}
+    return matches ? { location, status: 'found' } : { location, status: 'conflicting', message: `${agent.name}: conflicting or unverifiable In Parallel MCP entry in ${location}. Match it to the selected URL or remove that entry, then rerun setup. Existing settings were preserved; no URLs or credentials were printed.` }
   }
+  const locations = []
   if (agent.id === 'claude') {
     const file = env.CLAUDE_CONFIG_DIR ? path.join(path.resolve(env.CLAUDE_CONFIG_DIR), '.claude.json') : path.join(home, '.claude.json')
     const config = read(file)
-    check(config, `${file} (user scope)`)
+    locations.push(check(config, `${file} (user scope)`))
     for (const folder of folders) {
-      check(config.projects?.[folder], `${file} (local scope for ${folder})`)
+      locations.push(check(config.projects?.[folder], `${file} (local scope for ${folder})`))
       const project = path.join(folder, '.mcp.json')
       // This checkout's file is the distribution template, rewritten by bundle().
-      if (path.resolve(project) !== path.resolve(source, '.mcp.json')) check(read(project), `${project} (project scope)`)
+      if (path.resolve(project) !== path.resolve(source, '.mcp.json')) locations.push(check(read(project), `${project} (project scope)`))
     }
-  } else {
+  } else if (agent.id === 'cursor') {
     const personal = path.join(home, '.cursor', 'mcp.json')
-    check(read(personal), `${personal} (user scope)`)
+    locations.push(check(read(personal), `${personal} (user scope)`))
     for (const folder of folders) {
       const project = path.join(folder, '.cursor', 'mcp.json')
-      if (project !== personal) check(read(project), `${project} (project scope)`)
+      if (project !== personal) locations.push(check(read(project), `${project} (project scope)`))
+    }
+  } else {
+    // Codex resolves these itself; verifyMcp asks it. Here only report what each file names.
+    const personal = path.join(env.CODEX_HOME ? path.resolve(env.CODEX_HOME) : path.join(home, '.codex'), 'config.toml')
+    const files = [[personal, 'user scope'], ...folders.map(folder => [path.join(folder, '.codex', 'config.toml'), 'project scope'])]
+    for (const [file, scope] of files.filter(([file], index) => index === 0 || file !== personal)) {
+      const location = `${file} (${scope})`
+      const table = (text(file) || '').split(/^\[/m).find(section => /^mcp_servers\.("?)in_parallel\1\]/.test(section))
+      if (table === undefined) { locations.push({ location, status: 'not found' }); continue }
+      let matches = !url
+      try { matches ||= endpoint(table.match(/^\s*url\s*=\s*"([^"]*)"/m)?.[1]) === url } catch {}
+      locations.push({ location, status: matches ? 'found' : 'conflicting' })
     }
   }
+  return locations
+}
+
+function preflightMcp(agent, url, options) {
+  if (!['claude', 'cursor'].includes(agent.id)) return
+  const conflict = mcpLocations(agent, url, options).find(location => location.message)
+  if (conflict) throw new Error(conflict.message)
+}
+
+// Where the client registers plugins, from its own inventory. With a setup-managed
+// copy, any other In Parallel copy conflicts with it.
+function registrationLocations(agent, root, state, cwd) {
+  if (!agent.command) return [{ location: `${root} (user plugin folder)`, status: fs.existsSync(root) ? 'found' : 'not found' }]
+  if (!state) return [{ location: `${agent.name} plugin registrations`, status: `not checked: the ${agent.command} CLI did not answer` }]
+  const scopes = agent.id === 'claude' ? ['user', 'project', 'local'] : ['user']
+  const locations = scopes.map(scope => {
+    const rows = state.existing.filter(plugin => (plugin.scope || 'user') === scope)
+    const location = `${agent.name} plugin registration (${scope} scope${scope === 'user' ? '' : ` for ${cwd}`})`
+    if (!rows.length) return { location, status: 'not found' }
+    const conflicting = state.receipt && rows.some(plugin => state.foreign.includes(plugin))
+    return { location, status: `${conflicting ? 'conflicting' : 'found'}: ${rows.map(pluginId).join(', ')}` }
+  })
+  locations.push({ location: `${agent.name} marketplace ${MARKETPLACE}`,
+    status: !state.market ? 'not found' : state.receipt ? 'found' : 'conflicting: not created by this setup' })
+  return locations
 }
 
 function verifyMcp(agent, url, execute = run) {
@@ -332,14 +395,14 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
   url = endpoint(url)
   preflightMcp(agent, url, { home, cwd, env, source })
   const root = target(agent, home)
-  const state = preflight(agent, root, execute, replace)
+  const state = preflight(agent, root, execute, replace, { cwd })
   const prepared = bundle(agent, url, source)
   if (dryRun) {
     log(`Would install ${agent.name} for this user at ${root}\nMCP: ${prepared.receipt.endpoint}`)
     if (state.replacements.length) log(`Would remove ${state.replacements.join(', ')} after verifying the new installation.`)
     return
   }
-  writeBundle(root, prepared.files, agent)
+  writeBundle(root, prepared.files, agent, state.receipt)
   if (agent.command) {
     if (!state.registered) execute(agent.command, ['plugin', 'marketplace', 'add', root])
     if (agent.id === 'claude') {
@@ -370,24 +433,100 @@ function install(agent, url, { home, source, cwd, env, execute = run, dryRun = f
   log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\n${features(prepared.receipt)}` : ''}\n${instructions(agent, hooked(prepared.receipt))}\nThen ${verify(experimental)}`)
 }
 
-function uninstall(agent, { home, execute = run, dryRun = false, log = console.log } = {}) {
+function uninstall(agent, { home = os.homedir(), cwd, execute = run, dryRun = false, log = console.log } = {}) {
   const root = target(agent, home)
-  const state = preflight(agent, root, execute)
+  const state = preflight(agent, root, execute, [], { cwd, keep: true })
   if (!dryRun) removeJournalCache(home, log)
-  if (!state.receipt) { log(`${agent.name}: no setup-managed installation.`); return }
-  if (dryRun) { log(`Would remove the setup-managed ${agent.name} installation at ${root}`); return }
-  if (state.installed) execute(agent.command, ['plugin', agent.id === 'codex' ? 'remove' : 'uninstall', PLUGIN,
-    ...(agent.id === 'claude' ? ['--scope', 'user'] : [])])
-  if (state.registered) execute(agent.command, ['plugin', 'marketplace', 'remove', MARKETPLACE])
-  fs.rmSync(root, { recursive: true })
-  log(`${agent.name}: removed. Other plugins were preserved.`)
+  const kept = state.foreign.filter(plugin => !(state.receipt && pluginId(plugin) === PLUGIN && plugin.scope === 'user'))
+    .map(plugin => agent.id === 'claude' && plugin.scope !== 'user'
+      ? `${agent.name}: kept ${pluginId(plugin)}. ${projectScope(plugin, cwd || process.cwd())}`
+      : `${agent.name}: kept ${pluginId(plugin)}; setup did not install it.`)
+  if (!state.receipt) { log([`${agent.name}: no setup-managed installation.`, ...kept].join('\n')); return }
+  const names = [...Object.keys(state.receipt.files), RECEIPT]
+  if (dryRun) {
+    log([state.installed && `Would uninstall ${PLUGIN} from ${agent.name} (user scope)`,
+      state.registered && `Would remove the ${MARKETPLACE} marketplace from ${agent.name}`,
+      `Would back up and remove the ${names.length} files setup wrote at ${root}`, ...kept].filter(Boolean).join('\n'))
+    return
+  }
+  const expected = { ...state.receipt.files, [RECEIPT]: digest(fs.readFileSync(path.join(root, RECEIPT))) }
+  const backup = path.join(home, '.in-parallel', 'setup', 'backups', `${agent.id}-${new Date().toISOString().replace(/[:.]/g, '-')}`)
+  const lines = []
+  try {
+    for (const name of names) {
+      fs.mkdirSync(path.dirname(path.join(backup, name)), { recursive: true, mode: 0o700 })
+      fs.copyFileSync(path.join(root, name), path.join(backup, name))
+    }
+    lines.push(`${agent.name}: backed up ${root} to ${backup}`)
+    // Compare and swap: refuse if anything changed since preflight read it.
+    if (JSON.stringify(managed(root, agent)) !== JSON.stringify(state.receipt)) throw new Error(`${root} changed while uninstall was running. Nothing was removed.`)
+    if (state.installed) {
+      execute(agent.command, ['plugin', agent.id === 'codex' ? 'remove' : 'uninstall', PLUGIN, ...(agent.id === 'claude' ? ['--scope', 'user'] : [])])
+      lines.push(`${agent.name}: uninstalled ${PLUGIN} (user scope)`)
+    }
+    if (state.registered) {
+      execute(agent.command, ['plugin', 'marketplace', 'remove', MARKETPLACE])
+      lines.push(`${agent.name}: removed the ${MARKETPLACE} marketplace`)
+    }
+    for (const name of names) {
+      const file = path.join(root, name)
+      if (digest(fs.readFileSync(file)) !== expected[name]) {
+        throw new Error(`${file} changed after uninstall checked it; it was kept and uninstall stopped. A backup of every file is at ${backup}.`)
+      }
+      fs.rmSync(file)
+      lines.push(`${agent.name}: removed ${file}`)
+    }
+    // Remove the folders left empty; keep any holding files setup did not write.
+    const prune = folder => {
+      for (const entry of fs.readdirSync(folder, { withFileTypes: true })) if (entry.isDirectory()) prune(path.join(folder, entry.name))
+      if (fs.readdirSync(folder).length) lines.push(`${agent.name}: kept ${folder}; it holds files setup did not write`)
+      else fs.rmdirSync(folder)
+    }
+    prune(root)
+    lines.push(...kept)
+  } finally { if (lines.length) log(lines.join('\n')) }
 }
 
-function doctor(agent, { home, cwd, env, source, execute = run, log = console.log } = {}) {
+const LAST_CHECK = home => path.join(home, '.in-parallel', 'setup', 'last-check.json')
+
+function lastChecks(home) {
+  try { return JSON.parse(fs.readFileSync(LAST_CHECK(home), 'utf8')) } catch { return {} }
+}
+
+function recordCheck(home, agent, error) {
+  const checks = lastChecks(home)
+  if (error) checks[agent.id] = { error, at: new Date().toISOString() }
+  else if (checks[agent.id]) delete checks[agent.id]
+  else return
+  fs.mkdirSync(path.dirname(LAST_CHECK(home)), { recursive: true, mode: 0o700 })
+  fs.writeFileSync(LAST_CHECK(home), json(checks), { mode: 0o600 })
+}
+
+// Doctor reports installed state: files, registrations and settings it can read.
+// Whether In Parallel actually reaches the agent only the agent can check.
+function doctor(agent, { home = os.homedir(), cwd = process.cwd(), env = process.env, source, execute = run, log = console.log } = {}) {
   removeJournalCache(home, log)
+  const previous = lastChecks(home)[agent.id]
+  try {
+    diagnose(agent, { home, cwd, env, source, execute, log }, previous)
+    recordCheck(home, agent, null)
+  } catch (error) {
+    recordCheck(home, agent, error.message)
+    throw error
+  }
+}
+
+function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
   const root = target(agent, home)
   const receipt = managed(root, agent)
-  if (!receipt) { log(`${agent.name}: no setup-managed installation.`); return }
+  let state = null
+  if (agent.command) {
+    try { state = preflight(agent, root, execute, [], { cwd, keep: true }) } catch (error) { if (receipt) throw error }
+  }
+  const locations = [...registrationLocations(agent, root, state, cwd), ...mcpLocations(agent, receipt?.endpoint, { home, cwd, env, source })]
+  log(`${agent.name}: checked\n${locations.map(({ location, status }) => `  ${location}: ${status}`).join('\n')}`)
+  const lastFailure = previous ? `\nLast failed check: ${previous.at}: ${previous.error}` : ''
+  if (!receipt) { log(`${agent.name}: no setup-managed installation.${lastFailure}`); return }
   const installedFeatures = receipt.experimental || RETIRED
   if (installedFeatures.join() !== experimentalFor(receipt.endpoint).join()) {
     throw new Error(`${agent.name}: installed with ${installedFeatures.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : `experimental features that ${receipt.endpoint} no longer gets`}. Run setup again to update.`)
@@ -399,12 +538,15 @@ function doctor(agent, { home, cwd, env, source, execute = run, log = console.lo
   if (missing) throw new Error(`${agent.name}: installed with outdated files. Run setup again to update.`)
   preflightMcp(agent, receipt.endpoint, { home, cwd, env, source })
   if (agent.command) {
-    const { installed, registered } = preflight(agent, root, execute)
+    const { installed, registered, foreign } = state
+    const project = foreign.find(plugin => agent.id === 'claude' && plugin.scope !== 'user')
+    if (project) throw new Error(projectScope(project, cwd))
+    if (foreign.length) throw new ReplacementRequired(foreign.map(pluginId))
     if (!registered) throw new Error(`${agent.name}: setup marketplace is not registered. Run setup again.`)
     if (!installed || installed.version !== receipt.version || installed.enabled !== true) throw new Error(`${agent.name}: prepared files do not match an enabled native installation. Run setup again.`)
   }
   verifyMcp(agent, receipt.endpoint, execute)
-  log(`${agent.name}: files verified${agent.command ? '; native registration verified' : '; runtime discovery needs verification'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; user/current-project conflict checks passed, runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\nTo verify, ${verify(installedFeatures)}\n${instructions(agent, hooked(receipt))}`)
+  log(`${agent.name} installed: files match the setup receipt${agent.command ? `; ${agent.name} reports version ${receipt.version} enabled` : '; Cursor discovers the folder when it reloads'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; no conflicting entry in the locations above; runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\n${agent.name} working: not verified by setup. To verify, ${verify(installedFeatures)}${lastFailure}\n${instructions(agent, hooked(receipt))}`)
 }
 
 module.exports = { AGENTS, SOURCE, PRODUCTION, EXPERIMENTAL, MARKETPLACE, PLUGIN, RECEIPT, ReplacementRequired, endpoint, target, bundle, managed, install, uninstall, doctor }

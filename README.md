@@ -75,6 +75,15 @@ In Parallel entry: `~/.claude.json` (or the one in `CLAUDE_CONFIG_DIR`),
 `.mcp.json` in the current project, and `~/.cursor/mcp.json` and
 `.cursor/mcp.json`. It never changes those files.
 
+Setup and uninstall act on your user installation only. A copy installed for a
+single project is left in place; setup names it and the command that removes it.
+
+`doctor` lists every location it checked (your user settings, the project root
+and the current directory, and each client's plugin registrations) as found,
+not found or conflicting. It checks what is installed, not that it works: to
+check that, ask your agent "Check my In Parallel connection". When the previous
+`doctor` run failed, it shows that error and when.
+
 ### Uninstall
 
 If you used the setup command, run:
@@ -82,6 +91,10 @@ If you used the setup command, run:
 ```sh
 npx -y github:in-parallel-oy/agent-plugin uninstall
 ```
+
+It removes only the files and registrations setup itself wrote, prints one
+line for each, and first backs the files up to `~/.in-parallel/setup/backups/`.
+It stops without removing a file that changed since setup wrote it.
 
 If you installed from a plugin browser, remove **In Parallel** there.
 
