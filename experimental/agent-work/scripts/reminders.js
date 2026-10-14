@@ -18,7 +18,7 @@ const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/p
 const CREATE_PR = /\bgh\s+pr\s+create\b/
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
 const CODE_CALL = /report_back\s*\(/g
-const CODE_EVENT = /\bevent\b["'\s:]{0,8}(started|note|finished)\b/
+const CODE_EVENT = /\bevent\b["'\s:]{0,8}(started|note|finished|released)\b/
 // A report names its item with a link or an id; one without records nothing.
 const NAMES_ITEM = /\b(link|item_id)\b["'\s]{0,4}:/
 // Links reported in code mode's results: [{ label, url }].
@@ -139,7 +139,8 @@ function scan(transcript) {
         if (!call.item) continue
         // A start after a finish is new work on an item.
         if (call.event === 'started' && (!state.sent || state.finished)) Object.assign(state, { sent: true, finished: false })
-        if (call.event === 'finished' && state.sent) state.finished = true
+        // A released start is dropped without claiming work: nothing left to report.
+        if (['finished', 'released'].includes(call.event) && state.sent) state.finished = true
         for (const url of call.urls) state.reported.add(url)
       }
     }

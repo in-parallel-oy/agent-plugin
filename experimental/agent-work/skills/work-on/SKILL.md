@@ -37,9 +37,12 @@ once you work on it.
    work produced, each with a short label, such as the pull request. When you
    stop to wait for the person, report a note with `waiting: true`. When you
    come back to it, read it again: if its `since_you_last_checked` shows a new
-   owner, or a stop reminder says it is now someone else's, tell the person
-   and stop reporting on it. When the person says not to report, do not report,
-   and when you stop, tell them why you stop without reporting. When the
+   owner, or a stop reminder says it is now someone else's, tell the person,
+   report `event: "released"` and stop reporting on it. When the person stops
+   you, or you only gave a plan and no work follows, report `event: "released"`:
+   it drops your start without claiming work. When the person says not to
+   report, do not report, and when you stop, tell them why you stop without
+   reporting. When the
    work looks incomplete, such as a TODO left or a step not done, ask the
    person before finishing, or finish only your part with `close: false` and
    say what remains.

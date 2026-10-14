@@ -6,8 +6,13 @@ description: Reads team context in In Parallel and records findings when asked. 
 # Working with In Parallel
 
 In Parallel holds a team’s plans, meetings, decisions and shared knowledge in
-workspaces. When the `in-parallel-agent-work` skill is installed, load it to
-report work on an item, or work the person did with no item named.
+workspaces.
+
+When the person asks you to update or report to In Parallel about work done or
+in progress, such as "Update In Parallel" after a task, load the
+`in-parallel-agent-work` skill, if installed, and follow it: it reports the work
+with `report_back`. That is not publishing: do not look up workspaces, search
+pages or ask where to publish.
 
 ## Find context
 

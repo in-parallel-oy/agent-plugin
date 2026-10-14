@@ -25,9 +25,10 @@ Report state changes, not activity: started, finished, and finished with
 `close: false` when only your part is done. A note is for a turning point the
 owner should know about, not a progress log.
 
-Replies name the person you act for in `acting_for`: the person this
-connection reports for, usually the person you are talking to. Where a reply
-says "the person you act for", it means them.
+Replies name the person you act for in `acting_for`. That is the person in
+this conversation unless they say otherwise; do not question it because a git
+user name or another account differs. Where a reply says "the person you act
+for", it means them.
 
 When the person says not to report, do not report; when you stop, tell them
 why you are stopping without reporting.
@@ -69,13 +70,18 @@ why you are stopping without reporting.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
+8. **Release.** To drop your start without claiming any work, report
+   `event: "released"`: after a handover, after "start this and tell me your
+   plan" when no work follows, or when the person stops you. The status does
+   not change, and it answers the stop reminder for the item.
 7. **Wait.** When you stop to wait for the person, such as for an approval
    or an answer, report `event: "note"` with `waiting: true` and a `note`
    saying what you wait for. That answers the stop reminder for the item.
    Waiting does not override a handover. When you come back to the item,
    read it again: when its `since_you_last_checked` shows a new owner, or a
    stop reminder says it is now someone else's and the person you act for no
-   longer owns it, tell the person and stop reporting on it.
+   longer owns it, tell the person, release your start with
+   `event: "released"` and stop reporting on it.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the

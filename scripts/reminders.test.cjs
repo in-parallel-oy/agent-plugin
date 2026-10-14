@@ -135,6 +135,14 @@ test('a finished report from Claude Code and Codex transcripts ends the item in 
   assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('started')])), true)
 })
 
+test('a released start from Claude Code and Codex transcripts ends the item in play', t => {
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('released')])), false)
+  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('started'), codexCall('released')])), false)
+  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('started'), codexCode('released')])), false)
+  // A start after a release is new work on the item.
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('released'), report('started')])), true)
+})
+
 test('the item in play follows the latest item and ignores links the person did not send', t => {
   // A second item sent after the first was finished needs its own report.
   assert.equal(inPlay(transcript(t, [prompt(SEND), report('finished'), prompt(SEND)])), true)
@@ -217,4 +225,29 @@ test('the hook source never reaches for the network, processes or credentials', 
   const source = fs.readFileSync(SCRIPT, 'utf8')
   assert.deepEqual([...source.matchAll(/require\('([^']+)'\)/g)].map(match => match[1]), ['node:fs'])
   assert.doesNotMatch(source, /process\.env|https?\.request|fetch\(|child_process|\.claude\.json|\.codex\/auth|security find|writeFile|appendFile|mkdir/)
+})
+
+// Codex expands no variables in a hook command: it runs the command with the
+// session's shell (sh, bash or zsh with -c on macOS and Linux) and sets PLUGIN_ROOT
+// and CLAUDE_PLUGIN_ROOT in its environment (codex-rs hooks/src/engine/discovery.rs),
+// with the session's directory as the working directory.
+test('the Codex hook commands run from any directory with the root Codex sets, and only with it', t => {
+  const plugin = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-codex-plugin-'))
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-codex-cwd-'))
+  t.after(() => { fs.rmSync(plugin, { recursive: true, force: true }); fs.rmSync(cwd, { recursive: true, force: true }) })
+  fs.mkdirSync(path.join(plugin, 'scripts'))
+  fs.copyFileSync(SCRIPT, path.join(plugin, 'scripts', 'reminders.js'))
+  const hooks = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'codex.json'), 'utf8')).hooks
+  const commands = ['UserPromptSubmit', 'PostToolUse'].flatMap(event => hooks[event].flatMap(group => group.hooks).map(hook => [event, hook.command]))
+  assert.equal(commands.length, 2)
+  const PATH = `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH}`
+  const run = (command, input, env) => spawnSync('/bin/sh', ['-c', command], { cwd, input: JSON.stringify(input), encoding: 'utf8', env: { PATH, ...env } })
+  for (const [event, command] of commands) {
+    const input = { hook_event_name: event, prompt: SEND, tool_name: 'Bash', tool_input: { command: 'ls' }, tool_response: { stdout: '' } }
+    const ok = run(command, input, { PLUGIN_ROOT: plugin, CLAUDE_PLUGIN_ROOT: plugin })
+    assert.equal(ok.status, 0, `${event}: ${ok.stderr}`)
+    if (event === 'UserPromptSubmit') assert.match(JSON.parse(ok.stdout).hookSpecificOutput.additionalContext, /report_back/)
+    // Without the root the path is /scripts/reminders.js and node exits 1: the "hook exited with code 1" symptom.
+    assert.equal(run(command, input, {}).status, 1, event)
+  }
 })
