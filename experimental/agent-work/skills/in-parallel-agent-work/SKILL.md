@@ -5,6 +5,10 @@ description: Reports your work back to In Parallel on the item you were sent. Us
 
 # Report work back on In Parallel items
 
+Which path are you on? Sent an item link: follow **Report**. Reporting work
+with no item: follow **Without a link**. Only asked about an item: answer, and
+do not report.
+
 People send you items from In Parallel with Send to AI. The prompt carries the
 item's permanent link, `in-parallel://<company>/<type>/<id>`, and a line asking
 you to report back. `<company>` names their company, not a host. Report against
@@ -17,10 +21,17 @@ questions about it, such as "What has been done so far?", is not work: answer
 and do not report. Never finish a To do you did not work on
 unless the person asks you to report it.
 
+Report state changes, not activity: started, finished, and finished with
+`close: false` when only your part is done. A note is for a turning point the
+owner should know about, not a progress log.
+
 ## Report
 
 1. **Start.** Call `report_back` with the `link` and `event: "started"` when
-   you begin. A To do moves to Doing.
+   you begin. A To do moves to Doing. When the reply lists `others_working`,
+   other people or agents have started it too: tell the person and coordinate
+   rather than duplicate their work. When its `owner` notice says the item
+   belongs to someone else, never finish their To do without asking the person.
 2. **Note.** Report what you did or found with `event: "note"` and a `note` of
    one to three plain sentences for the item's owner. Report turning points,
    not every step.
@@ -32,12 +43,20 @@ unless the person asks you to report it.
    what you made, such as the pull request. A To do moves to Done, a risk is
    resolved and an open question answered. A decision's status does not
    change; report on each To do in the reply's `linked_action_items` by its id.
+   When your part is done but the To do is not, such as when others still
+   work on it, finish with `close: false`: your work is recorded and the To
+   do stays open.
 5. **Put down.** When the person asks you to drop a To do, report
    `event: "note"` with a `note` saying why, then move it back to To do with
    `update_action_item`, never to Done or Cancelled unless they ask.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
+
+Reminders depend on the client. In Claude Code, the plugin's stop hook may
+remind you of an unfinished start. Codex runs the plugin's hooks only once the
+person trusts them in `/hooks`. Other clients have none. Never tell the person
+a reminder will come; report when the state changes.
 
 When the person says they did the work themselves, one `event: "finished"`
 report is enough: no start or re-read, and `output_url` only if they gave a
