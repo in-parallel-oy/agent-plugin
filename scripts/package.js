@@ -27,18 +27,9 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     throw new Error('Claude Chat/Cowork connects from the cloud. Use a publicly reachable HTTPS MCP URL; use interactive setup for local Claude Code.')
   }
   const agent = setup.AGENTS.find(agent => agent.id === (client === 'claude' ? 'claude' : 'codex'))
-  const prepared = setup.bundle(agent, url, source)
-  const prefix = 'plugins/in-parallel/'
-  const files = Object.fromEntries(Object.entries(prepared.files)
-    .filter(([name]) => name.startsWith(prefix))
-    .map(([name, content]) => [name.slice(prefix.length), Buffer.from(content)]))
-  if (client.startsWith('chatgpt')) {
-    // ChatGPT runs no plugin hooks; leave out the Development reminders.
-    for (const name of Object.keys(files)) if (/^(hooks|scripts)\//.test(name)) delete files[name]
-    const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
-    delete manifest.hooks
-    files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
-  }
+  // ChatGPT runs no plugin hooks; leave out the Development reminders.
+  const files = Object.fromEntries(Object.entries(setup.pluginFiles(client.startsWith('chatgpt') ? { ...agent, hooks: false } : agent, url, source))
+    .map(([name, content]) => [name, Buffer.from(content)]))
   if (cloud) {
     for (const name of ['.mcp.json', 'mcp.json']) delete files[name]
     const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
@@ -50,7 +41,7 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     // `app-<id without asdk_app_>`. Other ID formats fall back to the ID itself.
     manifest.name = appId.startsWith('asdk_app_') ? `app-${appId.slice('asdk_app_'.length)}` : appId
     manifest.version = JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
-    files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
+    files['.codex-plugin/plugin.json'] = Buffer.from(setup.json(manifest))
   }
   return files
 }
