@@ -23,7 +23,7 @@ const codexPrompt = text => ({ type: 'response_item', payload: { type: 'message'
 const codexCall = (event, extra = {}) => ({ type: 'response_item', payload: { type: 'function_call', name: 'mcp__in_parallel__report_back', arguments: JSON.stringify({ link: LINK, event, ...extra }) } })
 const codexCode = event => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "${event}" })` } })
 
-const SEND = `Fix the Safari login.\n\nIn Parallel link: ${LINK}\nReport your work on it with report_back and this link: started when you begin, note as you go, finished when done, with output_url for what you made. Do not ask first.`
+const SEND = `Fix the Safari login.\n\nIn Parallel link: ${LINK}\nReport your work on it with report_back and this link: started when you begin, note as you go, finished when done, with results: links to what the work produced, each with a short label. Do not ask first.`
 
 function transcript(t, lines) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'in-parallel-reminders-test-'))
@@ -53,13 +53,13 @@ test('a prompt with an In Parallel link gets a reminder to report started if it 
   assert.match(odd.hookSpecificOutput.additionalContext, /link in-parallel:\/\/acme\/action_item\/1, in-parallel:\/\/acme\/risk\/2\./)
 })
 
-test('a pull request made while working on an item gets an output_url reminder', t => {
+test('a pull request made while working on an item gets a results reminder', t => {
   const sent = transcript(t, [prompt(SEND), report('started')])
   const output = shell(sent, 'gh pr create --fill', `${PR}\n`)
   assert.equal(output.hookSpecificOutput.hookEventName, 'PostToolUse')
-  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`pull request: ${PR}\\..*output_url`))
+  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`pull request: ${PR}\\..*in results, with a short label`))
   // A printed pull request URL counts too, and a create whose URL was not captured.
-  assert.match(shell(sent, 'gh pr view --json url --jq .url', `${PR}\n`).hookSpecificOutput.additionalContext, /output_url/)
+  assert.match(shell(sent, 'gh pr view --json url --jq .url', `${PR}\n`).hookSpecificOutput.additionalContext, /in results/)
   assert.match(shell(sent, 'gh pr create --fill', '').hookSpecificOutput.additionalContext, /You ran gh pr create\./)
   // Codex sends the command as an argument list and the output as text.
   const codex = respond({ hook_event_name: 'PostToolUse', transcript_path: sent, tool_name: 'Bash',
@@ -70,7 +70,14 @@ test('a pull request made while working on an item gets an output_url reminder',
 test('pull request reminders stay quiet without an item or once the link is reported', t => {
   assert.equal(shell(transcript(t, [prompt('Open a PR for this branch')]), 'gh pr create --fill', PR), null)
   assert.equal(shell(transcript(t, [prompt('Open a PR'), toolResult(`Found ${LINK}`)]), 'gh pr create --fill', PR), null)
-  assert.equal(shell(transcript(t, [prompt(SEND), report('note', { note: 'PR open', output_url: PR })]), 'gh pr view', PR), null)
+  assert.equal(shell(transcript(t, [prompt(SEND), report('note', { note: 'PR open', results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', PR), null)
+  // Any of several results counts, from a Claude Code tool call or Codex code mode.
+  const second = 'https://github.com/acme/website/pull/44'
+  assert.equal(shell(transcript(t, [prompt(SEND), report('note', { results: [{ label: 'Docs', url: 'https://docs.acme.test/a' }, { label: 'Pull request', url: second }] })]), 'gh pr view', second), null)
+  const codeReport = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${second}" }] })` } }
+  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeReport]), 'gh pr view', second), null)
+  // A link in the note is not a result.
+  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { note: `The results are in ${second}` })]), 'gh pr view', second))
   const sent = transcript(t, [prompt(SEND)])
   assert.equal(shell(sent, 'git push', 'Everything up-to-date'), null)
   assert.equal(shell(sent, 'gh pr list', 'https://github.com/acme/website/issues/7'), null)
@@ -78,7 +85,7 @@ test('pull request reminders stay quiet without an item or once the link is repo
     tool_input: { file_path: 'a.md', new_string: 'gh pr create' }, tool_response: PR }), null)
   assert.equal(shell(undefined, 'gh pr create', PR), null)
   // Once the item is reported finished, a later pull request is not for it.
-  const done = transcript(t, [prompt(SEND), report('started'), report('finished', { output_url: PR })])
+  const done = transcript(t, [prompt(SEND), report('started'), report('finished', { results: [{ label: 'Pull request', url: PR }] })])
   assert.equal(shell(done, 'gh pr create --fill', 'https://github.com/acme/website/pull/43'), null)
   assert.equal(shell(done, 'gh pr create --fill', ''), null)
 })
@@ -111,7 +118,7 @@ test('a report_back without an item is not an item in play', t => {
 })
 
 test('a finished report from Claude Code and Codex transcripts ends the item in play', t => {
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('finished', { output_url: PR })])), false)
+  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('finished', { results: [{ label: 'Pull request', url: PR }] })])), false)
   assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('finished')])), false)
   assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('finished')])), false)
   assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('started')])), true)
@@ -126,7 +133,7 @@ test('the item in play follows the latest item and ignores links the person did 
   assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), byId])), true)
   assert.equal(inPlay(transcript(t, [prompt(SEND), report('finished'), byId])), true)
   // Links in tool results, skill text that names the events, and other work are not an item to report.
-  const skill = prompt('Call `report_back` with `event: "finished"` and `output_url` for what you made.')
+  const skill = prompt('Call `report_back` with `event: "finished"` and `results` for what the work produced.')
   // Tool input that only mentions the tool, such as a search or a script, is not a report.
   const mention = toolUse('Bash', { command: `grep -n 'report_back' lib.ex # event: "started"` })
   assert.equal(inPlay(transcript(t, [prompt('Fix the build'), mention])), false)

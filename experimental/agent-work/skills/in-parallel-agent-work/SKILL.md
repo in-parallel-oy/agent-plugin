@@ -12,8 +12,8 @@ do not report.
 People send you items from In Parallel with Send to AI. The prompt carries the
 item's permanent link, `in-parallel://<company>/<type>/<id>`, and a line asking
 you to report back. `<company>` names their company, not a host. Report against
-that link with `report_back`, so the person sees your work on the item they
-own. When you work on the item, report without asking first, unless the person
+that link with `report_back`, so the person you act for sees your work on the
+item. When you work on the item, report without asking first, unless the person
 asks you to check with them before reporting.
 
 Report only when you actually work on the item. Reading it or answering
@@ -25,13 +25,17 @@ Report state changes, not activity: started, finished, and finished with
 `close: false` when only your part is done. A note is for a turning point the
 owner should know about, not a progress log.
 
+In replies, In Parallel names only other people; the person you act for is
+never named.
+
 ## Report
 
 1. **Start.** Call `report_back` with the `link` and `event: "started"` when
    you begin. A To do moves to Doing. When the reply lists `others_working`,
-   other people or agents have started it too: tell the person and coordinate
-   rather than duplicate their work. When the reply has an `owner_notice`, the
-   item belongs to someone else: never finish it without asking the person.
+   other people or agents have started it too: tell the person you act for and
+   coordinate rather than duplicate their work. When the reply has an
+   `owner_notice`, the item belongs to someone other than the person you act
+   for: never finish it without asking them.
 2. **Note.** Report what you did or found with `event: "note"` and a `note` of
    one to three plain sentences for the item's owner. Report turning points,
    not every step.
@@ -39,16 +43,20 @@ owner should know about, not a progress log.
    `get_action_item`. Its `since_you_last_checked` says what people changed
    while you worked, such as a new owner, an update or a linked decision.
    Adjust your work when it changes the task.
-4. **Finish.** Call `report_back` with `event: "finished"` and `output_url` for
-   what you made, such as the pull request. A To do moves to Done, a risk is
-   resolved and an open question answered. A decision's status does not
-   change; report on each To do in the reply's `linked_action_items` by its id.
-   When your part is done but the To do is not, such as when others still
-   work on it, finish with `close: false`: your work is recorded and the To
-   do stays open.
+4. **Finish.** Call `report_back` with `event: "finished"` and `results`:
+   links to what the work produced, each with a short label, such as the pull
+   request: `[{"label": "Pull request", "url": "https://..."}]`. Up to five,
+   each a different http(s) link with a label of at most 60 characters. A To
+   do moves to Done, a risk is resolved and an open question answered. A
+   decision's status does not change; report on each To do in the reply's
+   `linked_action_items` by its id. When your part is done but the To do is
+   not, such as when others still work on it, finish with `close: false`: that
+   ends your part, records your work and leaves the To do open.
 5. **Put down.** When the person asks you to drop a To do, report
    `event: "note"` with a `note` saying why, then move it back to To do with
-   `update_action_item`, never to Done or Cancelled unless they ask.
+   `update_action_item`, never to Done or Cancelled unless they ask. When
+   others still work on it, drop only your part instead: finish with
+   `close: false`, which ends your part and leaves the To do open for them.
 6. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
@@ -59,7 +67,7 @@ person trusts them in `/hooks`. Other clients have none. Never tell the person
 a reminder will come; report when the state changes.
 
 When the person says they did the work themselves, one `event: "finished"`
-report is enough: no start or re-read, and `output_url` only if they gave a
+report is enough: no start or re-read, and `results` only if they gave a
 link.
 
 When an item read or a `report_back` reply says people outside the company can
@@ -84,7 +92,8 @@ When the person asks you to report back but names no item, first call
 "Finished the release notes", not a list of what it contained, and no `link`
 or `item_id`. Always send the note: without it the reply only asks you for
 one. The `event` is optional for this lookup. The call records nothing and
-asks no one; its reply lists their open To dos as `choices`. Those that fit
+asks no one: its reply starts "Lookup only, nothing recorded yet" and lists
+their open To dos as `choices`. Those that fit
 your note carry `match: "strong"`, and one whose whole title your note covers
 is also `best_match: true`. Do not make them name the item. Go by the matches:
 
@@ -105,11 +114,11 @@ when the reply says In Parallel could not ask, or no question appears: list
 the choices once, then report on the one they name.
 
 For local work with no link, such as a file on their machine, describe it in
-the `note`. `output_url` takes only http(s) links.
+the `note`. `results` takes only http(s) links.
 
 A matching To do owned by a teammate may be missing from `choices`;
 `list_action_items` can find it. Report on someone else's To do only when the
-person confirms it.
+person you act for confirms it.
 
 If `report_back` is unavailable, continue the work and tell the person
 reporting back is not available in this In Parallel connection.

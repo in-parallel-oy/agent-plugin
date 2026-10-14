@@ -20,7 +20,9 @@ const CREATE_PR = /\bgh\s+pr\s+create\b/
 const CODE_CALL = /report_back\s*\(\s*\{[^}]*?\bevent\b["'\\\s:]{0,8}(started|note|finished)\b[^}]*\}/g
 // A report names its item with a link or an id; one without records nothing.
 const NAMES_ITEM = /\b(link|item_id)\b["'\\\s]{0,4}:/
-const OUTPUT_URL = /output_url["'\\\s:=]{0,8}(https?:\/\/[^\s"'\\,)}]+)/g
+// Links reported in results: [{ label, url }]. Every link after the results key counts.
+const RESULTS = /\bresults\b["'\\]{0,2}\s*:/
+const RESULT_URL = /https?:\/\/[^\s"'\\,)}\]]+/g
 const MAX_TRANSCRIPT = 32 * 1024 * 1024
 
 function readTranscript(file) {
@@ -103,7 +105,8 @@ function scan(transcript) {
         // A start after a finish is new work on an item.
         if (call.event === 'started' && (!state.sent || state.finished)) Object.assign(state, { sent: true, finished: false })
         if (call.event === 'finished' && state.sent) state.finished = true
-        for (const match of call.text.matchAll(OUTPUT_URL)) state.reported.add(match[1])
+        const results = call.text.search(RESULTS)
+        if (results >= 0) for (const match of call.text.slice(results).matchAll(RESULT_URL)) state.reported.add(match[0])
       }
     }
   }
@@ -127,7 +130,7 @@ function respond(input) {
     const links = [...new Set(String(input.prompt || '').match(LINK) || [])].slice(0, 3)
     if (!links.length) return null
     return context(event, `This prompt carries the In Parallel link ${links.join(', ')}. ` +
-      'If you work on this item, call report_back with that link and event "started" before you begin, and when you are done, report "finished" with output_url for what you made. ' +
+      'If you work on this item, call report_back with that link and event "started" before you begin, and when you are done, report "finished" with results: links to what the work produced, each with a short label, such as the pull request. ' +
       'Reading it or answering questions about it is not work: do not report.')
   }
   if (event === 'PostToolUse') {
@@ -138,8 +141,8 @@ function respond(input) {
     const state = scan(readTranscript(input.transcript_path))
     if (!state.sent || state.finished || (url && state.reported.has(url))) return null
     return context(event, url
-      ? `You have a pull request: ${url}. If it is for the In Parallel item you are working on, pass it as output_url when you call report_back.`
-      : 'You ran gh pr create. If it made a pull request for the In Parallel item you are working on, pass its link as output_url when you call report_back.')
+      ? `You have a pull request: ${url}. If it is for the In Parallel item you are working on, pass it in results, with a short label such as "Pull request", when you call report_back.`
+      : 'You ran gh pr create. If it made a pull request for the In Parallel item you are working on, pass its link in results, with a short label such as "Pull request", when you call report_back.')
   }
   return null
 }

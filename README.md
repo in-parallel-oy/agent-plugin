@@ -80,9 +80,17 @@ single project is left in place; setup names it and the command that removes it.
 
 `doctor` lists every location it checked (your user settings, the project root
 and the current directory, and each client's plugin registrations) as found,
-not found or conflicting. It checks what is installed, not that it works: to
-check that, ask your agent "Check my In Parallel connection". When the previous
-`doctor` run failed, it shows that error and when.
+not found or conflicting, before it reports any error. For Claude Code it lists
+each In Parallel copy with its scope, the project it belongs to and its files,
+such as the setup copy for your user and one installed in another project. A
+conflicting entry says what it conflicts with and why, and changed installed
+files are named. It checks what is installed, not that it works: to check that,
+ask your agent "Check my In Parallel connection". When the previous `doctor`
+run failed, it shows that error and when.
+
+`doctor` changes no installation or setting, but it is not read-only: it
+records the result in `~/.in-parallel/setup/last-check.json` and deletes the
+retired work journal cache described below.
 
 ### Uninstall
 
@@ -116,15 +124,18 @@ Adds the `in-parallel-agent-work` skill. When you send an In Parallel item to
 your assistant with Send to AI, the prompt carries the item's In Parallel link.
 The skill asks your assistant to report its work back on that item with the In
 Parallel `report_back` tool: when it starts, short notes as it goes, and when it
-finishes, with a link to what it made, such as a pull request. Starting moves a
-To do to Doing and finishing moves it to Done. Before finishing, your assistant
+finishes, with its results: links to what the work produced, each with a short
+label, such as the pull request. Starting moves a To do to Doing and finishing
+moves it to Done. When its part is done but the To do is not, such as when
+others still work on it, it finishes with `close: false`: that ends its part
+and leaves the To do open. Before finishing, your assistant
 reads the item again to see what people changed while it worked. When In
 Parallel says people outside your company can read the item, your assistant
 writes its notes for them and leaves out internal details.
 
 When you ask your assistant to report work without naming an item, it works
 out the item itself: it sends `report_back` one short sentence naming the work,
-and In Parallel records nothing and returns your open To dos, the ones that fit
+and In Parallel replies "Lookup only, nothing recorded yet" with your open To dos, the ones that fit
 marked a strong match. Your assistant reports on the best match, a To do whose
 whole title the note covers, and tells you which; if only strong or possible
 matches fit, it asks In Parallel to ask you (`ask: true`); if none fits, it
@@ -150,6 +161,8 @@ you pick one, and it reports starting on it.
 
 To put a To do down, ask your assistant to drop it. It reports a note saying
 why and moves the To do back to To do, never to Done or Cancelled unless you ask.
+When others still work on the To do, it finishes its own part with
+`close: false` instead, which leaves the To do open for them.
 
 In Claude Code and Codex, the feature adds hooks that nudge your assistant to
 report. `scripts/reminders.js` reminds it:
@@ -157,7 +170,7 @@ report. `scripts/reminders.js` reminds it:
 - when your message carries an In Parallel link, to report that it started if it
   works on the item, and not when it only reads it or answers questions about it;
 - after it opens or prints a pull request while working on an item, to pass
-  the pull request as the link to what it made.
+  the pull request in `results`, labelled, as a link to what the work produced.
 
 That script reads only what your assistant passes it and, after a pull request,
 the session's local transcript, because the command and its output stay on your
