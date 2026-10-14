@@ -13,8 +13,7 @@ once you work on it.
 1. **List their To dos.** Call `report_back` with a `note` and no `event`,
    `link` or `item_id`. If they named a To do when they ran the command, the
    note is their words; otherwise it is "Picking a To do to work on". It
-   records nothing: its reply starts "Lookup only, nothing recorded yet" and
-   lists `choices`: up to ten of their open To dos. If they have none, say so and stop.
+   records nothing: its reply has `recorded: false` and lists `choices`: up to ten of their open To dos. If they have none, say so and stop.
 2. **Let them pick.** If they named a To do and exactly one choice has
    `match: "strong"` (it is also `best_match: true`), take it. In every other
    case, call `report_back` again with the same `note`, `event: "started"`

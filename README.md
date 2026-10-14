@@ -135,7 +135,7 @@ writes its notes for them and leaves out internal details.
 
 When you ask your assistant to report work without naming an item, it works
 out the item itself: it sends `report_back` one short sentence naming the work,
-and In Parallel replies "Lookup only, nothing recorded yet" with your open To dos, the ones that fit
+and In Parallel records nothing yet and replies with your open To dos, the ones that fit
 marked a strong match. Your assistant reports on the best match, a To do whose
 whole title the note covers, and tells you which; if only strong or possible
 matches fit, it asks In Parallel to ask you (`ask: true`); if none fits, it

@@ -25,8 +25,8 @@ Report state changes, not activity: started, finished, and finished with
 `close: false` when only your part is done. A note is for a turning point the
 owner should know about, not a progress log.
 
-In replies, In Parallel names only other people; the person you act for is
-never named.
+In replies, In Parallel calls the person you act for "the person you act
+for", not by name.
 
 ## Report
 
@@ -92,8 +92,8 @@ When the person asks you to report back but names no item, first call
 "Finished the release notes", not a list of what it contained, and no `link`
 or `item_id`. Always send the note: without it the reply only asks you for
 one. The `event` is optional for this lookup. The call records nothing and
-asks no one: its reply starts "Lookup only, nothing recorded yet" and lists
-their open To dos as `choices`. Those that fit
+asks no one: its reply has `recorded: false` and lists their open To dos
+as `choices`. Those that fit
 your note carry `match: "strong"`, and one whose whole title your note covers
 is also `best_match: true`. Do not make them name the item. Go by the matches:
 
