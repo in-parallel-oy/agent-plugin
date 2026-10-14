@@ -577,7 +577,8 @@ function install(agent, url, { home, source, cwd = process.cwd(), env, execute =
     }
     if (state.replacements.length) {
       const after = copies()
-      if (after.foreign.length || !matches(after.installed, receipt)) {
+      if (after.foreign.length || after.existing.filter(plugin => ourUserCopy(agent, plugin)).length !== 1 ||
+          !matches(after.installed, receipt)) {
         throw new Error(`Replacement could not be verified. Run setup again to finish; do not activate duplicate copies.`)
       }
     }
@@ -691,6 +692,8 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
   if (failure) throw failure
   const lastFailure = previous ? `\nLast failed check: ${previous.at}: ${previous.error}` : ''
   if (!receipt) { log(`${agent.name}: no setup-managed installation.${lastFailure}`); return }
+  // Rerunning setup cannot fix a marketplace that points elsewhere, so it comes first.
+  if (state?.elsewhere) throw elsewhereError(agent)
   const installedFeatures = receipt.experimental || RETIRED
   if (installedFeatures.join() !== experimentalFor(receipt.endpoint).join()) {
     throw new Error(`Installed with ${installedFeatures.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : `experimental features that ${receipt.endpoint} no longer gets`}. Run setup again to update.`)

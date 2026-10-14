@@ -555,6 +555,13 @@ for (const agent of setup.AGENTS.filter(agent => agent.command)) {
     assert.throws(() => setup.doctor(agent, options), /points elsewhere/)
     assert.equal(fs.readFileSync(path.join(root, setup.RECEIPT), 'utf8'), before)
     assert.ok(native.calls.slice(count).every(args => args.includes('list')))
+    // Rerunning setup cannot fix it, so doctor names it before outdated files.
+    const receipt = JSON.parse(before)
+    const name = Object.keys(receipt.files).find(file => file.includes('skills/in-parallel/'))
+    fs.rmSync(path.join(root, name))
+    delete receipt.files[name]
+    fs.writeFileSync(path.join(root, setup.RECEIPT), JSON.stringify(receipt))
+    assert.throws(() => setup.doctor(agent, options), /points elsewhere/)
   })
 }
 
@@ -681,6 +688,19 @@ for (const agent of setup.AGENTS.filter(agent => agent.command)) {
     native.ignoreRemove = false
     setup.install(agent, 'http://localhost:54104/mcp', options)
     assert.deepEqual(native.plugins.map(plugin => plugin.pluginId || plugin.id).sort(), ['another-plugin@personal', setup.PLUGIN].sort())
+  })
+
+  test(`${agent.name}: a second setup copy after replacement is not verified`, t => {
+    const home = fixture(t)
+    const native = host(agent, home)
+    const oldId = existing(native)
+    const execute = (command, args, options) => {
+      const result = native.execute(command, args, options)
+      if (['remove', 'uninstall'].includes(args[1])) native.plugins.push({ ...native.plugins.find(plugin => (plugin.pluginId || plugin.id) === setup.PLUGIN) })
+      return result
+    }
+    assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', { home, cwd: home, env: {}, execute, replace: [oldId], log() {} }),
+      /Replacement could not be verified/)
   })
 
   test(`${agent.name}: a newly discovered copy requires its own replacement confirmation`, t => {
@@ -859,6 +879,7 @@ for (const agent of [setup.AGENTS[0], setup.AGENTS[2]]) {
     assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Conflicting In Parallel MCP entry/)
     fs.writeFileSync(file, '{invalid-json')
     assert.throws(() => setup.install(agent, 'http://localhost:54104/mcp', options), /Could not read MCP configuration/)
+    assert.throws(() => setup.doctor(agent, options), /Could not read MCP configuration/)
   })
 }
 
