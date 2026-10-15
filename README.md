@@ -130,7 +130,8 @@ your assistant with Send to AI, the prompt carries the item's In Parallel link.
 The skill asks your assistant to report its work back on that item with the In
 Parallel `report_back` tool: when it starts, short notes as it goes, and when it
 finishes, with its results: links to what the work produced, each with a short
-label, such as the pull request. Starting moves a To do to Doing and finishing
+label, such as the revised draft or the shared deck. Work with no link, such
+as a local file, it finishes with a note naming the file's path. Starting moves a To do to Doing and finishing
 moves it to Done. When its part is done but the To do is not, such as when
 others still work on it, it finishes with `close: false`: that ends its part
 and leaves the To do open. Before finishing, your assistant
@@ -143,18 +144,23 @@ people outside your company can read the item, your assistant writes its notes
 for them and leaves out internal details.
 
 When you ask your assistant to report work without naming an item, it works
-out the item itself: it sends `report_back` one short sentence naming the work,
+out the item itself: it sends `report_back` one to three sentences describing the work,
 and In Parallel records nothing yet and replies with your open To dos, the ones that fit
 marked a strong match. Your assistant reports on the best match, a To do whose
-whole title the note covers, and tells you which; if only strong or possible
-matches fit, it asks In Parallel to ask you (`ask: true`); if none fits, it
-offers to create a To do. Work with no link, such as a local file, is described in the note. When
-you say you did the work yourself, it reports only that the item is finished.
+whole title the note covers, and tells you which; if only strong matches fit,
+it asks In Parallel to ask you (`ask: true`); if none fits, it offers to create
+a To do. When you say you did the work yourself, it reports only that the item
+is finished. When a conversation seems to finish one of your To dos without
+you asking for a report, it offers once to record it.
 
 Your assistant reports only when it actually works on the item. Reading an
 item or answering your questions about it is not work on it, so nothing is
 reported, and it never finishes a To do it did not work on unless you ask it to
-report that. If you ask it to check with you before reporting, it does. If you
+report that. When you ask only for a plan, it gives the plan and does not
+start; if it had started, or you tell it to stop there or to drop the item, it
+reports that it released the item, which puts back the status its start
+changed while nobody has changed it since. If you ask it to check with you
+before reporting, it does. If you
 ask it to pause, it reports a note saying so and leaves the item in Doing; if
 it is reminded to finish when it stops, it tells you the work is paused. When
 it stops to wait for you, such as for an approval or an answer, it reports a
