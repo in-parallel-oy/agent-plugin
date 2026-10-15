@@ -45,6 +45,8 @@ test('a prompt with an In Parallel link gets a reminder to report started if it 
   assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptSubmit')
   assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`link ${LINK}\\. If you work on this item, call report_back`))
   assert.match(output.hookSpecificOutput.additionalContext, /answering questions about it is not work/)
+  assert.match(output.hookSpecificOutput.additionalContext, /Asked only for a plan\? Give it and do not start\./)
+  assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /pull request/)
   assert.match(output.hookSpecificOutput.additionalContext, /"started"/)
   for (const text of ['Fix the Safari login', 'see in-parallel:// for details', 'https://www.in-parallel.ai/acme/action-items/1', '']) {
     assert.equal(respond({ hook_event_name: 'UserPromptSubmit', prompt: text }), null, text)

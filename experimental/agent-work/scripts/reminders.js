@@ -186,8 +186,8 @@ function respond(input) {
     const links = [...new Set(String(input.prompt || '').match(LINK) || [])].slice(0, 3)
     if (!links.length) return null
     return context(event, `This prompt carries the In Parallel link ${links.join(', ')}. ` +
-      'If you work on this item, call report_back with that link and event "started" before you begin, and when you are done, report "finished" with results: links to what the work produced, each with a short label, such as the pull request. ' +
-      'Reading it or answering questions about it is not work: do not report.')
+      'If you work on this item, call report_back with that link and event "started" before you begin, and when you are done, report "finished" with results: links to what the work produced, each with a short label, such as the revised draft. ' +
+      'Reading it or answering questions about it is not work: do not report. Asked only for a plan? Give it and do not start.')
   }
   if (event === 'PostToolUse') {
     const command = commandText(input.tool_input)
