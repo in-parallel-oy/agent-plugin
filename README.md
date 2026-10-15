@@ -159,6 +159,31 @@ Ask your assistant: **“Check my In Parallel connection.”**
 If you can't install the plugin or access your workspace, ask your workspace
 administrator for help.
 
+## Publishing to the MCP registry
+
+`server.json` lists the hosted In Parallel MCP server in the official
+[MCP registry](https://registry.modelcontextprotocol.io). PulseMCP and Glama
+pick up new entries from there; Smithery needs its own submission.
+
+The name `ai.in-parallel/in-parallel` proves ownership of `in-parallel.ai`
+through a DNS TXT record on the apex domain. Install `mcp-publisher` (see the
+registry quickstart) and OpenSSL 3 (`brew install openssl@3`; macOS LibreSSL
+lacks Ed25519), then:
+
+```sh
+OPENSSL=/opt/homebrew/opt/openssl@3/bin/openssl
+$OPENSSL genpkey -algorithm Ed25519 -out key.pem
+PUBLIC_KEY="$($OPENSSL pkey -in key.pem -pubout -outform DER | tail -c 32 | base64)"
+echo "in-parallel.ai. IN TXT \"v=MCPv1; k=ed25519; p=${PUBLIC_KEY}\""
+# add that TXT record to the in-parallel.ai apex, wait for it to resolve, then:
+mcp-publisher login dns --domain in-parallel.ai --private-key "$($OPENSSL pkey -in key.pem -noout -text | grep -A3 'priv:' | tail -n +2 | tr -d ' :\n')"
+mcp-publisher publish
+```
+
+Keep `key.pem` out of the repo. Bump `version` in `server.json` with
+`plugin.json` and publish again when the listing should change.
+
+
 ## License
 
 [Apache-2.0](LICENSE).
