@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "ai.in-parallel/in-parallel",
   "title": "In Parallel",
-  "description": "The context layer for your company's AI: your team's decisions, meetings and plans, with sources.",
+  "description": "The context layer for your company's AI: team decisions, meetings and plans, cited and permissioned.",
   "version": "0.1.1",
   "websiteUrl": "https://www.in-parallel.com/mcp",
   "repository": {
