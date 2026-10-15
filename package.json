@@ -1,6 +1,6 @@
 {
   "name": "@in-parallel/agent-plugin",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Bring your team's context into conversations with your AI assistant.",
   "license": "Apache-2.0",
   "repository": {
