@@ -159,10 +159,6 @@ Ask your assistant: **“Check my In Parallel connection.”**
 If you can't install the plugin or access your workspace, ask your workspace
 administrator for help.
 
-## License
-
-[Apache-2.0](LICENSE).
-
 ## Publishing to the MCP registry
 
 `server.json` lists the hosted In Parallel MCP server in the official
@@ -186,3 +182,8 @@ mcp-publisher publish
 
 Keep `key.pem` out of the repo. Bump `version` in `server.json` with
 `plugin.json` and publish again when the listing should change.
+
+
+## License
+
+[Apache-2.0](LICENSE).
