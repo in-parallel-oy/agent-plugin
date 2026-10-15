@@ -157,7 +157,7 @@ Your assistant reports only when it actually works on the item. Reading an
 item or answering your questions about it is not work on it, so nothing is
 reported, and it never finishes a To do it did not work on unless you ask it to
 report that. When you ask only for a plan, it gives the plan and does not
-start; if it had started, or you tell it to stop there or to drop the item, it
+start; if it had started, or you tell it to stop there or to put the item down, it
 reports that it released the item, which puts back the status its start
 changed while nobody has changed it since. If you ask it to check with you
 before reporting, it does. If you
@@ -180,10 +180,9 @@ To start without Send to AI, run the `work-on` command (`/in-parallel:work-on`
 in Claude Code; the `work-on` skill in Codex and Cursor). Your assistant lists your open To dos,
 you pick one, and it reports starting on it.
 
-To put a To do down, ask your assistant to drop it. It reports a note saying
-why and moves the To do back to To do, never to Done or Cancelled unless you ask.
-When others still work on the To do, it finishes its own part with
-`close: false` instead, which leaves the To do open for them.
+To put a To do down, ask your assistant to put it down. It reports that it
+released the To do, which moves it back to To do while nobody has changed it
+since, never to Done or Cancelled unless you ask.
 
 In Claude Code and Codex, the feature adds hooks that nudge your assistant to
 report. `scripts/reminders.js` reminds it:

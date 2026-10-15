@@ -23,7 +23,7 @@ const RULES = {
     'When the work looks incomplete',
     'One rule for start, plan and stop: start only when you are going to do the work',
     'give the plan and do not start. If you had already started, report `released`',
-    'When the person tells you to stop here, or to drop the item, report `released` too',
+    'When the person tells you to stop here, or to put the item down, report `released` too',
     'It puts back the status your start changed',
     'finish with a `note` naming its path and leave `results` empty',
     'offer once to record it in In Parallel',
@@ -45,6 +45,7 @@ const RETIRED = {
     'might still be it',
     'pull request: `[{"label": "Pull request"',
     'When others still work on the item, finish only your part',
+    'drop the item',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     'put down',

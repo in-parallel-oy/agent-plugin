@@ -27,7 +27,7 @@ ask where to publish.
 Never create or edit records, such as pages or items, the person did not ask
 for. When you write the content, show what you will write and confirm it
 before publishing; a `report_back` report needs no confirmation, and neither
-does a status change the person asked for, such as putting a To do down.
+does a status change the person asked for, such as marking a To do Done.
 
 `capture_to_workspace` accepts ordinary prose: what you found, where and why it
 matters. Let the server choose the record kind. When a conversation turns up a

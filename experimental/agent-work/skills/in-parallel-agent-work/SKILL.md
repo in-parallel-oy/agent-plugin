@@ -25,7 +25,7 @@ One rule for start, plan and stop: start only when you are going to do the
 work. When the person asks only for a plan, such as "tell me your plan",
 give the plan and do not start. If you had already started, report
 `released` once you have told them. When the person tells you to stop here,
-or to drop the item, report `released` too.
+or to put the item down, report `released` too.
 
 Report state changes, not activity: started, finished, and finished with
 `close: false` when only your part is done. A note is for a turning point the
@@ -78,10 +78,10 @@ why you are stopping without reporting.
    saying what you wait for. That answers the stop reminder for the item.
    Waiting does not override a handover: when you come back to the item,
    read it again and Release on a handover.
-7. **Release.** To drop your start without claiming any work, report
+7. **Release.** To end your start without claiming any work, report
    `event: "released"`, with a `note` saying why, and stop reporting on the
    item: after a handover, after a plan-only request, when the person tells
-   you to stop here, or when they ask you to drop the item. It puts back the
+   you to stop here, or when they ask you to put the item down. It puts back the
    status your start changed, so a To do you moved to Doing goes back to To
    do, but only while nobody has changed it since, the person you act for
    still owns it and no one else has started it; otherwise the status stays
