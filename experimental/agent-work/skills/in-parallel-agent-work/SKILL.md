@@ -86,11 +86,9 @@ why you are stopping without reporting.
    do, but only while nobody has changed it since, the person you act for
    still owns it and no one else has started it; otherwise the status stays
    and the reply says why. Never move it to Done or Cancelled unless they
-   ask. When others still work on the item, finish only your part with
-   `close: false` instead. A handover is when the item's
-   `since_you_last_checked` shows a new owner, or a stop reminder says it is
-   now someone else's and the person you act for no longer owns it: tell the
-   person. A release answers the stop reminder for the item. When the person
+   ask. A handover is when the item's `since_you_last_checked` shows a new
+   owner, or a stop reminder says it is now someone else's and the person you
+   act for no longer owns it: tell the person. A release answers the stop reminder for the item. When the person
    asks you to pause, use Pause instead.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may

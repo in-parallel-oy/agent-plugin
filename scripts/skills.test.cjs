@@ -44,6 +44,7 @@ const RETIRED = {
     '`possible`',
     'might still be it',
     'pull request: `[{"label": "Pull request"',
+    'When others still work on the item, finish only your part',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     'put down',
