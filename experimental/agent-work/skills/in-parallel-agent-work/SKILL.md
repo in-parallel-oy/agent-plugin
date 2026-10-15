@@ -88,8 +88,9 @@ why you are stopping without reporting.
    and the reply says why. Never move it to Done or Cancelled unless they
    ask. A handover is when the item's `since_you_last_checked` shows a new
    owner, or a stop reminder says it is now someone else's and the person you
-   act for no longer owns it: tell the person. A release answers the stop reminder for the item. When the person
-   asks you to pause, use Pause instead.
+   act for no longer owns it: tell the person. A release answers the stop
+   reminder for the item. When the person asks you to pause, use Pause
+   instead.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
