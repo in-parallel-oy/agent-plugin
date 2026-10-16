@@ -7,7 +7,7 @@ const { parseArgs } = require('node:util')
 const { zipSync } = require('fflate')
 const setup = require('./setup-lib')
 
-const CLIENTS = ['claude', 'codex', 'chatgpt-desktop', 'chatgpt-web']
+const CLIENTS = ['claude', 'claude-projects', 'codex', 'chatgpt-desktop', 'chatgpt-web']
 
 function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
   if (!CLIENTS.includes(client)) throw new Error(`Choose a client: ${CLIENTS.join(', ')}.`)
@@ -17,6 +17,8 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
   }
   if (!cloud && appId) throw new Error('--app-id is only supported with --client chatgpt-web.')
   if (cloud && url !== undefined) throw new Error('ChatGPT web uses the registered app endpoint; omit --url.')
+  const projects = client === 'claude-projects'
+  if (projects && url !== undefined) throw new Error('Claude Projects reach In Parallel through the claude.ai connector; omit --url.')
   url = setup.endpoint(url ?? 'https://www.in-parallel.ai/mcp')
   const parsed = new URL(url)
   const hostname = parsed.hostname.replace(/\.$/, '')
@@ -26,7 +28,7 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
   if (client === 'claude' && (parsed.protocol !== 'https:' || loopback)) {
     throw new Error('Claude Chat/Cowork connects from the cloud. Use a publicly reachable HTTPS MCP URL; use interactive setup for local Claude Code.')
   }
-  const agent = setup.AGENTS.find(agent => agent.id === (client === 'claude' ? 'claude' : 'codex'))
+  const agent = setup.AGENTS.find(agent => agent.id === (client.startsWith('claude') ? 'claude' : 'codex'))
   // ChatGPT runs no plugin hooks; leave out the Development reminders.
   const files = Object.fromEntries(Object.entries(setup.pluginFiles(client.startsWith('chatgpt') ? { ...agent, hooks: false } : agent, url, source))
     .map(([name, content]) => [name, Buffer.from(content)]))
@@ -43,6 +45,18 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     manifest.version = JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
     files['.codex-plugin/plugin.json'] = Buffer.from(setup.json(manifest))
   }
+  if (projects) {
+    // Project threads are cloud sessions that get MCP tools from the claude.ai
+    // connector, so a plugin server would duplicate it. Ship skills only.
+    for (const name of Object.keys(files)) {
+      if (/^(hooks|scripts)\//.test(name) || ['.mcp.json', 'mcp.json'].includes(name)) delete files[name]
+    }
+    const manifest = JSON.parse(files['.claude-plugin/plugin.json'])
+    delete manifest.hooks
+    delete manifest.mcpServers
+    manifest.version = JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
+    files['.claude-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
+  }
   return files
 }
 
@@ -52,7 +66,7 @@ function main(args = process.argv.slice(2)) {
     'app-id': { type: 'string' }, help: { type: 'boolean', short: 'h' },
   } })
   if (values.help) {
-    console.log('Build an In Parallel plugin ZIP without installing any client.\n\nnode scripts/package.js --client <claude|codex|chatgpt-desktop|chatgpt-web> [--output file.zip] [--url https://host/mcp]\n\nChatGPT web additionally requires --app-id for an existing registered app. The archive declares no MCP server and no .app.json (OpenAI manages the connection); its manifest name is app-<id without asdk_app_> for asdk_app_ IDs.\nArchives contain plugin files only. Existing output files are never overwritten.')
+    console.log('Build an In Parallel plugin ZIP without installing any client.\n\nnode scripts/package.js --client <claude|claude-projects|codex|chatgpt-desktop|chatgpt-web> [--output file.zip] [--url https://host/mcp]\n\nClaude Projects takes no --url: the archive has skills and manifest only, and threads use the claude.ai connector.\nChatGPT web additionally requires --app-id for an existing registered app. The archive declares no MCP server and no .app.json (OpenAI manages the connection); its manifest name is app-<id without asdk_app_> for asdk_app_ IDs.\nArchives contain plugin files only. Existing output files are never overwritten.')
     return
   }
   const files = packageFiles(values.client, { url: values.url, appId: values['app-id'] })
@@ -62,7 +76,9 @@ function main(args = process.argv.slice(2)) {
   fs.writeFileSync(output, zipSync(files), { flag: 'wx', mode: 0o600 })
   const next = values.client === 'claude'
     ? 'Upload through Customize → Plugins, then connect In Parallel.'
-    : 'Use the local or workspace marketplace flow in README.md, then connect In Parallel.'
+    : values.client === 'claude-projects'
+      ? 'Add it in Project settings → Plugins, after connecting In Parallel under claude.ai → Customize → Connectors.'
+      : 'Use the local or workspace marketplace flow in README.md, then connect In Parallel.'
   console.log(`Created ${output}\n${next}`)
 }
 

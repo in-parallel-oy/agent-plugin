@@ -28,6 +28,20 @@ Open the app's plugin browser and install **In Parallel** from your team's
 plugin library. If it isn't listed, add `https://github.com/in-parallel-oy/agent-plugin`
 as a plugin source, or ask your administrator to make it available.
 
+### Claude Projects
+
+Threads in a Claude project reach In Parallel through your claude.ai connector;
+the project conversation itself can't use In Parallel, only its threads can.
+
+1. Connect In Parallel under claude.ai → **Customize → Connectors**.
+2. Get the `claude-projects` ZIP from your administrator, or build it from a
+   checkout of this repository with `node scripts/package.js --client claude-projects`.
+   It holds the skill only, with no MCP server, hooks or scripts.
+3. Add it in **Project settings → Plugins**.
+
+If your workspace offers it, **Copy instructions for a Claude project** on the
+workspace's What's set up page gives you project instructions to paste in.
+
 ### Then
 
 Sign in to In Parallel, choose the workspaces you want to connect, and start a
@@ -258,6 +272,60 @@ Ask your assistant: **“Check my In Parallel connection.”**
 
 If you can't install the plugin or access your workspace, ask your workspace
 administrator for help.
+
+## Publishing to the MCP registry
+
+`server.json` lists the hosted In Parallel MCP server in the official
+[MCP registry](https://registry.modelcontextprotocol.io): the context layer
+for your company's AI, which gives Claude, ChatGPT, Copilot and other MCP
+clients your team's decisions, meetings and plans, with sources and scoped to
+each user's permissions. PulseMCP and Glama ingest new entries from the
+official registry; Smithery needs its own submission at
+[smithery.ai](https://smithery.ai).
+
+Install `mcp-publisher` (`brew install mcp-publisher`) and check the file:
+
+```sh
+mcp-publisher validate
+```
+
+The name `ai.in-parallel/in-parallel` needs proof that you control
+`in-parallel.ai`. Both proofs use an Ed25519 key, which needs OpenSSL 3
+(`brew install openssl@3`; macOS LibreSSL lacks Ed25519):
+
+```sh
+OPENSSL=/opt/homebrew/opt/openssl@3/bin/openssl
+$OPENSSL genpkey -algorithm Ed25519 -out key.pem
+PUBLIC_KEY="$($OPENSSL pkey -in key.pem -pubout -outform DER | tail -c 32 | base64)"
+PRIVATE_KEY="$($OPENSSL pkey -in key.pem -noout -text | grep -A3 'priv:' | tail -n +2 | tr -d ' :\n')"
+```
+
+Then pick one:
+
+- **DNS.** Add a TXT record on the `in-parallel.ai` apex (not a subdomain)
+  with the value `v=MCPv1; k=ed25519; p=${PUBLIC_KEY}`, wait for
+  `dig +short TXT in-parallel.ai` to show it, then run
+  `mcp-publisher login dns --domain in-parallel.ai --private-key "$PRIVATE_KEY"`.
+- **HTTP.** Serve the single line `v=MCPv1; k=ed25519; p=${PUBLIC_KEY}` as
+  `text/plain` at `https://in-parallel.ai/.well-known/mcp-registry-auth`.
+  The registry fetches the apex and does not follow redirects, so the
+  apex-to-www redirect must skip this path. Then run
+  `mcp-publisher login http --domain in-parallel.ai --private-key "$PRIVATE_KEY"`.
+
+After logging in, publish:
+
+```sh
+mcp-publisher publish
+```
+
+Without domain access, rename the server to `io.github.in-parallel-oy/in-parallel`
+and log in with `mcp-publisher login github` as an Owner of the
+`in-parallel-oy` GitHub organization.
+
+Keep `key.pem` out of the repo. Each published version is permanent, so bump
+`version` in `server.json` together with `plugin.json` and publish again when
+the listing should change.
+
 
 ## License
 
