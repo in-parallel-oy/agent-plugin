@@ -7,6 +7,7 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const setup = require('./setup-lib')
 const { SKILLS, tmp } = require('./test-helpers.cjs')
+const { TAGGED } = require(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js'))
 // The shipped default endpoint, read rather than repeated so fixtures follow the config.
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 
@@ -230,7 +231,7 @@ test('only the Development environment and localhost add experimental features, 
       assert.deepEqual(Object.keys(hooks), agent.id === 'claude'
         ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] : ['UserPromptSubmit', 'PostToolUse', 'Stop'])
       if (agent.id === 'claude') {
-        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), ['^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$'])
+        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), [TAGGED.source])
       }
       for (const event of agent.id === 'claude' ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'] : ['UserPromptSubmit', 'PostToolUse']) {
         for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
