@@ -132,14 +132,16 @@ Parallel `report_back` tool: when it starts, short notes as it goes, and when it
 finishes, with its results: links to what the work produced, each with a short
 label, such as the revised draft or the shared deck. Work with no link, such
 as a local file, it finishes with a note naming the file's path. Starting moves a To do to Doing and finishing
-moves it to Done. When its part is done but the To do is not, such as when
-others still work on it, it finishes with `close: false`: that ends its part
-and leaves the To do open. Before finishing, your assistant
+moves it to Done. When the work is shared and its share is genuinely done
+while others still do the rest, it finishes with `close: false`: that ends its
+part and leaves the To do open. Before finishing, your assistant
 reads the item again to see what people changed while it worked. When the work
 looks incomplete, such as a TODO left or a step not done, it asks you before
 finishing, or reports a note saying what remains and leaves the item started,
 not finished: `close: false` is only for a part that is genuinely finished.
-Progress and a part still to come are notes too.
+Progress, a part still to come and work it was not asked to do, such as the
+rest of the item after a step you asked for, are notes too. When you ask it
+only to add a note, it adds just that note.
 In Parallel's replies name the person it acts for in `acting_for`: the person
 its In Parallel connection reports for, usually you. When In Parallel says
 people outside your company can read the item, your assistant writes its notes
@@ -162,9 +164,11 @@ Your assistant reports only when it actually works on the item. Reading an
 item or answering your questions about it is not work on it, so nothing is
 reported, and it never finishes a To do it did not work on unless you ask it to
 report that. When you ask only for a plan, it gives the plan and does not
-start; if it had started, or you tell it to stop there or to put the item down, it
+start; if it had started, or you ask it to put the item down or hand it on, it
 reports that it released the item, which puts back the status its start
-changed while nobody has changed it since. If you ask it to check with you
+changed while nobody has changed it since. Telling it to stop for now, such
+as "then stop", only ends its turn: it does not release, and tells you what
+remains. If you ask it to check with you
 before reporting, it does. If you
 ask it to pause, it reports a note saying so and leaves the item in Doing; if
 it is reminded to finish when it stops, it tells you the work is paused. When
