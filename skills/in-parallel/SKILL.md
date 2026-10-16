@@ -20,7 +20,7 @@ publishing: do not look up workspaces, search pages or ask where to publish.
 ## Find context
 
 - For open-ended catch-ups, call `brief_me` across accessible workspaces. Narrow it when the user names a workspace.
-- For a specific question, call `search_knowledge` directly; it searches meetings, observations and plans together.
+- For a specific question, call `search` directly; it searches meetings, observations and plans together.
 - Use an existing record ID or In Parallel URL with its `get_*` tool; no workspace lookup is needed. The server checks the link’s environment.
 - When the person asks you to record a decision, action item, risk, open question, goal or wiki page, search first. If an existing record covers the subject, offer to update it instead: `update_*` for observations, `edit_wiki_page` for wiki pages.
 

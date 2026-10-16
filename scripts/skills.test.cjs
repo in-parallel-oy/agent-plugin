@@ -11,6 +11,7 @@ const RULES = {
     'such as "Update In Parallel" after a task, load the `in-parallel-agent-work` skill',
     'Load it too when work in the conversation, yours or theirs, may finish one of their To dos',
     'including work they only mention as done, such as "the notes are in <path>"',
+    'For a specific question, call `search` directly',
   ],
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
@@ -66,6 +67,10 @@ const RULES = {
 
 // Wording a skill must not bring back.
 const RETIRED = {
+  // The search tool's name since the server renamed it; the old one is an unlisted alias.
+  'skills/in-parallel/SKILL.md': [
+    'search_knowledge',
+  ],
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     'usually the person you are talking to',
     '**Put down.**',
