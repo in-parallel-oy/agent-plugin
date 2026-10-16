@@ -1,6 +1,6 @@
 ---
 name: in-parallel
-description: Reads team context in In Parallel and records findings when asked. Use for workspace catch-ups, meetings, decisions, risks, action items, goals, team wiki questions, reusable findings or In Parallel links, and when work in the conversation, yours or the person's, such as "the notes are in <path>" or "I fixed it", may finish one of their To dos.
+description: Reads team context in In Parallel and records findings when asked. Use for workspace catch-ups, meetings, decisions, risks, action items, goals, team wiki questions, reusable findings or In Parallel links.
 ---
 
 # Working with In Parallel

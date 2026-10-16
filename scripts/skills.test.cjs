@@ -11,7 +11,6 @@ const RULES = {
     'such as "Update In Parallel" after a task, load the `in-parallel-agent-work` skill',
     'Load it too when work in the conversation, yours or theirs, may finish one of their To dos',
     'including work they only mention as done, such as "the notes are in <path>"',
-    'such as "the notes are in <path>" or "I fixed it", may finish one of their To dos',
   ],
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
