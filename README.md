@@ -57,8 +57,8 @@ new conversation with your assistant.
 
 The plugin has two parts: the `in-parallel` skill and a connection to the In
 Parallel server. It runs no hooks or scripts on your machine and keeps no local
-files. The files under `experimental/` and the hook scripts in `scripts/` are
-not part of it; see [Experimental features](#experimental-features).
+files. The files under `experimental/`, including their hooks, are not part of
+it; see [Experimental features](#experimental-features).
 
 ### What is sent to In Parallel
 
@@ -81,13 +81,35 @@ see, read or store a password or token.
 two setup dependencies. It copies the plugin to `~/.in-parallel/setup/` for
 Claude Code and Codex, or `~/.cursor/plugins/local/in-parallel` for Cursor, and
 registers it with the `claude` or `codex` command. It writes your chosen server
-URL into that copy. For the Development environment or a custom server, it also
-adds the [experimental features](#experimental-features).
+URL into that copy. For the Development environment or a server on localhost, it also adds the
+[experimental features](#experimental-features).
 
 Before it installs, it reads your existing MCP settings to find a conflicting
 In Parallel entry: `~/.claude.json` (or the one in `CLAUDE_CONFIG_DIR`),
 `.mcp.json` in the current project, and `~/.cursor/mcp.json` and
 `.cursor/mcp.json`. It never changes those files.
+
+Setup and uninstall act on your user installation only. A copy installed for a
+single project is left in place; setup names it and the command that removes it.
+
+`doctor` lists every location it checked (your user settings, the project root
+and the current directory, and each client's plugin registrations) as found,
+not found or conflicting, before it reports any error. For Claude Code it lists
+each In Parallel copy with its scope, the project it belongs to and its files,
+such as the setup copy for your user and one installed in another project. A
+conflicting entry says what it conflicts with and why, and a legacy entry named
+`in-parallel` comes with how to fix it. Changed installed files are named; when
+an installed `.mcp.json` gained an `Authorization` header, `doctor` says a
+credential header was added without printing it. It always shows the endpoint
+setup installed, even when a check fails. Without a setup copy, `doctor` lists
+any project copy setup did not install, says it can stay, and gives the command
+that removes it. It checks what is installed, not that it works: to check that,
+ask your agent "Check my In Parallel connection". When the previous `doctor`
+run failed, it shows that error and when.
+
+`doctor` changes no installation or setting, but it is not read-only: it
+records the result in `~/.in-parallel/setup/last-check.json` and deletes the
+retired work journal cache described below.
 
 ### Uninstall
 
@@ -97,60 +119,152 @@ If you used the setup command, run:
 npx -y github:in-parallel-oy/agent-plugin uninstall
 ```
 
-If you installed from a plugin browser, remove **In Parallel** there. If you
-used the experimental work journal, also delete `~/.in-parallel` to remove its
-local cache.
+It removes only the files and registrations setup itself wrote, prints one
+line for each, and first backs the files up to `~/.in-parallel/setup/backups/`.
+It stops without removing a file that changed since setup wrote it.
+
+If you installed from a plugin browser, remove **In Parallel** there.
+
+Earlier versions had an experimental work journal that kept a local cache in
+`~/.in-parallel`. Setup, `doctor` and `uninstall` delete that cache, and `doctor`
+asks you to run setup again if the work journal is still installed.
 
 ## Experimental features
 
 Features the In Parallel server has not yet enabled for every team live in
 `experimental/`. Plugin browsers never install them. The setup command adds them
-only when you choose the Development environment or a custom server, never for
-Production.
+only when you choose the Development environment
+(`https://www.in-parallel.dev/mcp`) or a server on localhost, never for Production or another
+server.
 
-### Work journal (`experimental/work-claims`)
+### Reporting work back (`experimental/agent-work`)
 
-Adds the `in-parallel-work` skill and two hook scripts. The skill asks your
-assistant to report the tasks it works on without being asked each time: a
-short title, a one to three sentence description, progress notes, and links
-such as the repository or pull request URL.
+Adds the `in-parallel-agent-work` skill. When you send an In Parallel item to
+your assistant with Send to AI, the prompt carries the item's In Parallel link.
+The skill asks your assistant to report its work back on that item with the In
+Parallel `report_back` tool: when it starts, short notes as it goes, and when it
+finishes, with its results: links to what the work produced, each with a short
+label, such as the revised draft or the shared deck. Work with no link, such
+as a local file, it finishes with a note naming the file's path. Starting moves a To do to Doing and finishing
+moves it to Done. When the work is shared and its share is genuinely done
+while others still do the rest, it finishes with `close: false`: that ends its
+part and leaves the To do open. Before finishing, your assistant
+reads the item again to see what people changed while it worked. When the work
+looks incomplete, such as a TODO left or a step not done, it asks you before
+finishing, or reports a note saying what remains and leaves the item started,
+not finished: `close: false` is only for a part that is genuinely finished.
+Progress, a part still to come, and the rest of the item left after a step
+you asked for are notes saying what remains, not a finish. When you ask it
+only to add a note, it adds just that note.
+In Parallel's replies name the person it acts for in `acting_for`: the person
+its In Parallel connection reports for, usually you. When In Parallel says
+people outside your company can read the item, your assistant writes its notes
+for them and leaves out internal details.
 
-In Claude Code and Codex, `scripts/context.js` runs when a session starts,
-when you send a message, and when a subagent starts. `scripts/remember-claim.js`
-runs after your assistant calls the In Parallel `announce_work`, `get_work` or
-`link_work_subject` tools.
+When you ask your assistant to report work without naming an item, it works
+out the item itself: it sends `report_back` one to three sentences describing the work,
+and In Parallel records nothing yet and replies with your open To dos, the ones that fit
+marked a strong match. Your assistant reports on the best match, a To do whose
+whole title the note covers, and tells you which; if only strong matches fit,
+it asks In Parallel to ask you (`ask: true`); if none fits, it offers to create
+a To do. When you say you did the work yourself, it reports only that the item
+is finished; when you did part of it and the rest is still to come, it adds a
+note instead. When a conversation seems to finish one of your To dos without
+you asking for a report, such as a file it or you wrote, a draft done, a fix
+made, or you just saying "the notes are in docs/notes.md", it offers once to
+record it; if you say no, it does not ask again.
 
-In Cursor, `scripts/context.js` runs when a session starts and after shell, file
-write, file delete, task and MCP tool calls. `scripts/remember-claim.js` runs
-after each MCP tool call and ignores every server except In Parallel.
+Your assistant reports only when it actually works on the item. Reading an
+item or answering your questions about it is not work on it, so nothing is
+reported, and it never finishes a To do it did not work on unless you ask it to
+report that. When you ask only for a plan, it gives the plan and does not
+start; if it had started, or you ask it to put the item down or hand it on, it
+reports that it released the item, which puts back the status its start
+changed while nobody has changed it since. Telling it to stop for now, such
+as "then stop", only ends its turn: it does not release, and tells you what
+remains. If you ask it to check with you
+before reporting, it does. If you
+ask it to pause, it reports a note saying so and leaves the item in Doing; if
+it is reminded to finish when it stops, it tells you the work is paused. When
+it stops to wait for you, such as for an approval or an answer, it reports a
+note marked `waiting: true`; the item then shows it waiting on you. Waiting
+does not override a handover: when it comes back to the item and reads that
+the item now has a new owner, it tells you and stops reporting on it. If you tell it not to report,
+it does not, and when it stops it tells you why it stops without reporting.
+It reads the item before it reports starting, and again before any later start.
 
-Each hook has a 10-second limit and never blocks your session. Neither script
-connects to In Parallel.
+The general `in-parallel` skill never creates or edits pages or items you did
+not ask for, and confirms each write with you except a `report_back` report.
 
-`context.js`:
+Your assistant never becomes the item's owner or assignee and never notifies
+anyone. Work that isn't about an item is not recorded.
 
-- reads the checkout's `origin` remote URL and current branch with `git`.
-  Any user name or password in the remote URL is dropped.
-- asks GitHub for a pull request on the current branch, if the GitHub CLI `gh`
-  is installed. `gh` uses your existing GitHub sign-in.
-- reads the local cache described below, and the MCP URL from the plugin's own
-  `.mcp.json` or `mcp.json`.
-- adds one line of context to the conversation: the repository URL, branch,
-  pull request URL, In Parallel server URL, a session ID, a workspace hint, and
-  the titles and status of this session's open work entries.
-- writes a small marker in `~/.in-parallel/sessions/` so the line is only
-  repeated when something changes, and notes the time in the local cache.
-  Markers older than seven days are deleted.
+To start without Send to AI, run the `work-on` command (`/in-parallel:work-on`
+in Claude Code; the `work-on` skill in Codex and Cursor). Your assistant lists your open To dos,
+you pick one, and it reports starting on it.
 
-`remember-claim.js` reads the In Parallel tool's reply and saves a handle for
-your own work entries in `~/.in-parallel/contributions.json`: the entry ID,
-version, status, title, latest update note, workspace ID, linked outcome ID,
-start time and the folder you were working in. Finished or cancelled entries
-keep only their ID, version, status and server. It also records when context,
-reads and reports last happened, so `doctor` can check the setup.
+To put a To do down, ask your assistant to put it down. It reports that it
+released the To do, which moves it back to To do while nobody has changed it
+since, never to Done or Cancelled unless you ask.
 
-The folder is readable only by you. The scripts send none of it anywhere; the
-titles and workspace hint appear in the context line above.
+In Claude Code and Codex, the feature adds hooks that nudge your assistant to
+report. `scripts/reminders.js` reminds it:
+
+- when your message carries an In Parallel link, to report that it started if it
+  works on the item, and not when it only reads it or answers questions about it;
+- after it opens or prints a pull request while working on an item, to pass
+  the pull request in `results`, labelled, as a link to what the work produced.
+
+That script reads only what your assistant passes it and, after a pull request,
+the session's local transcript, because the command and its output stay on your
+machine. It never reads your sign-in, connects to In Parallel or anything else,
+or writes files.
+
+Before your assistant stops, its `Stop` hook asks In Parallel's
+`report_back_reminder` tool, through your assistant's own In Parallel
+connection, whether it has an item it reported started and not yet finished.
+The plugin's hooks scope reminders to the conversation. In Claude Code, the
+`Stop` hook sends whether this stop already follows a reminder and the
+conversation's session id, and a `PreToolUse` hook (`scripts/reminders.js`) adds
+the same id as `client_session` to each `report_back` call, so only the
+conversation that reported an item started is reminded about it. The hook adds
+it to each item close too (`close_action_items`, `update_action_item`), so a
+close finishes only this conversation's start and leaves your other
+conversations' starts on the item, and to each item read (`get_action_item`,
+`get_decision`, `get_risk`, `get_open_question`, `get_observations`), so a read
+lists your other conversations working on the item. Neither reads a transcript, sign-in or
+setting. Codex names its conversation thread itself,
+as it does on every tool call, and In Parallel scopes reminders to that thread
+when Codex uses the newest protocol revision; otherwise any of your Codex
+sessions may be reminded once about another session's started item. In
+Parallel answers from the reports it recorded:
+
+- It reminds once per start: at the first stop after your assistant reports
+  starting an item, which may come before the work is done. Your assistant can
+  still stop by saying why the work isn't finished.
+- An item your assistant reported it is waiting on you for (a note with
+  `waiting: true`) is not reminded about.
+- Notes never bring the reminder back. Only reporting the item started again
+  does, until it is finished.
+- It never reminds at the stop right after a reminder.
+- An item you sent but your assistant never reported started is not reminded
+  about at stop. The prompt reminder still asks it to report that it started.
+- A subagent's end is never held up; only the main assistant's stop is hooked.
+
+When your company does not have the feature yet, In Parallel answers with no
+reminder and your assistant stops as usual. If the hook gets no answer, because
+you are signed out or In Parallel does not reply within 30 seconds, your
+assistant also stops as usual. Your client may show its own hook-error notice at
+each stop when you are signed out: Codex marks the In Parallel hook as failed.
+
+Codex asks you to trust the hooks in `/hooks` first, and again after they
+change. Cursor gets the command but no reminders.
+
+To try the feature against a local In Parallel server,
+`node scripts/e2e-bundle.js --agent claude|codex --url <loopback MCP URL> --out <dir> [--token-env NAME]`
+writes a plugin directory for `claude --plugin-dir`, or a local marketplace for
+Codex. With `--token-env`, the client reads a personal access token from that
+environment variable; the token itself is never written.
 
 ## Need help?
 

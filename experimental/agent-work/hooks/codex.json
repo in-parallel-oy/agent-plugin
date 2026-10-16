@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${PLUGIN_ROOT}/scripts/reminders.js\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          { "type": "command", "command": "node \"${PLUGIN_ROOT}/scripts/reminders.js\"", "timeout": 10 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "mcp_tool", "server": "in_parallel", "tool": "report_back_reminder", "input": { "stop_hook_active": "${stop_hook_active}" }, "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}
