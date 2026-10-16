@@ -40,8 +40,8 @@ owner should know about; routine activity is not reported. A part of the work
 still to come, such as a quote or a reply the work waits for, is a note, never
 a `finished`. Work not done is never a `finished`, with `close: false` or
 without: when you did only what you were asked and the item's own work
-remains, such as a command run while the rotation it is for was not
-performed, report a `note` saying what remains, with `waiting: true` when it
+remains with nobody doing it, such as a command run while the rotation it is
+for was not performed, report a `note` saying what remains, with `waiting: true` when it
 waits on the person, and leave your start open.
 
 Replies name the person you act for in `acting_for`. That is the person in

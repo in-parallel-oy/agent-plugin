@@ -30,6 +30,7 @@ const RULES = {
     'they mean end this turn, so your start stays open',
     'Not when the person only ends your turn, such as "then stop": your start stays open',
     'Work not done is never a `finished`, with `close: false` or without',
+    "the item's own work remains with nobody doing it",
     'report a `note` saying what remains, with `waiting: true` when it waits on the person, and leave your start open',
     'When the person asks you only to add a note, report just that `note`, in their words: no `started` and no `finished`',
     'When the work is shared and your share of it is genuinely done while others still do the rest, finish with `close: false`',

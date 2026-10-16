@@ -139,8 +139,8 @@ reads the item again to see what people changed while it worked. When the work
 looks incomplete, such as a TODO left or a step not done, it asks you before
 finishing, or reports a note saying what remains and leaves the item started,
 not finished: `close: false` is only for a part that is genuinely finished.
-Progress, a part still to come and work it was not asked to do, such as the
-rest of the item after a step you asked for, are notes too. When you ask it
+Progress, a part still to come, and the rest of the item left after a step
+you asked for are notes saying what remains, not a finish. When you ask it
 only to add a note, it adds just that note.
 In Parallel's replies name the person it acts for in `acting_for`: the person
 its In Parallel connection reports for, usually you. When In Parallel says
