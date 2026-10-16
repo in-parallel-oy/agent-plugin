@@ -151,7 +151,8 @@ whole title the note covers, and tells you which; if only strong matches fit,
 it asks In Parallel to ask you (`ask: true`); if none fits, it offers to create
 a To do. When you say you did the work yourself, it reports only that the item
 is finished. When a conversation seems to finish one of your To dos without
-you asking for a report, it offers once to record it.
+you asking for a report, such as a file it or you wrote, a draft done or a fix
+made, it offers once to record it; if you say no, it does not ask again.
 
 Your assistant reports only when it actually works on the item. Reading an
 item or answering your questions about it is not work on it, so nothing is

@@ -9,6 +9,7 @@ const path = require('node:path')
 const RULES = {
   'skills/in-parallel/SKILL.md': [
     'such as "Update In Parallel" after a task, load the `in-parallel-agent-work` skill',
+    'Load it too when work in the conversation, yours or theirs, may finish one of their To dos',
   ],
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
@@ -27,6 +28,10 @@ const RULES = {
     'It puts back the status your start changed',
     'finish with a `note` naming its path and leave `results` empty',
     'offer once to record it in In Parallel',
+    '## Offer once',
+    'plausibly finishes one of their To dos, even when nobody asks to report it',
+    'A file written, a draft done or a fix made is work, whether you did it or the person tells you they did',
+    'When you were sent the item, report without asking instead',
     'When the person skips In Parallel\'s question, none of the choices is the work',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [

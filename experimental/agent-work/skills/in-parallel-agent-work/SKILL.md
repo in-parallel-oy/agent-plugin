@@ -1,13 +1,15 @@
 ---
 name: in-parallel-agent-work
-description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, or when they say they started, are working on or finished something and ask you to update or report to In Parallel.
+description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, when they say they started, are working on or finished something and ask you to update or report to In Parallel, or when work in the conversation, yours or theirs, such as a file written, a draft done or a fix made, plausibly finishes one of their To dos, even when nobody asks to report it.
 ---
 
 # Report work back on In Parallel items
 
 Which path are you on? Sent an item link: follow **Report**. Reporting work
-with no item: follow **Without a link**. Only asked about an item: answer, and
-do not report.
+with no item: follow **Without a link**. Work done here or by the person that
+may finish one of their To dos, with no request to report it: follow **Offer
+once**. Only asked about an item, or only reading, answering or planning:
+answer, and do not report.
 
 People send you items from In Parallel with Send to AI. The prompt carries the
 item's permanent link, `in-parallel://<company>/<type>/<id>`, and a line asking
@@ -18,7 +20,8 @@ asks you to check with them before reporting.
 
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
-and do not report. Never finish a To do you did not work on
+and do not report. A file written, a draft done or a fix made is work, whether
+you did it or the person tells you they did. Never finish a To do you did not work on
 unless the person asks you to report it.
 
 One rule for start, plan and stop: start only when you are going to do the
@@ -154,16 +157,31 @@ the choices once, then report on the one they name.
 For local work with no link, such as a file on their machine, name its path
 in the `note` and leave `results` empty. `results` takes only http(s) links.
 
-When the conversation plausibly finishes one of the person's To dos and they
-have not asked you to report it, offer once to record it in In Parallel. If
-they decline or do not answer, do not offer again in this conversation.
-
 A matching To do owned by a teammate may be missing from `choices`;
 `list_action_items` can find it. Report on someone else's To do only when the
 person you act for confirms it.
 
 If `report_back` is unavailable, continue the work and tell the person
 reporting back is not available in this In Parallel connection.
+
+## Offer once
+
+When work in the conversation plausibly finishes one of the person's To dos
+and they have not asked you to report it, such as a file you or they wrote, a
+draft done or a fix made, offer once to record it in In Parallel, even though
+nobody asked. This holds when they only tell you, as in "The release notes are
+in docs/release-notes.md": reading the file to check it does not make the work
+yours, but it is still work done. Say it in one line, such as "Shall I record
+this as done on your To do Write release notes?". To name the To do, you may
+first call `report_back` with only a `note` describing the work; that lookup
+records nothing.
+
+- **They agree:** report as **Report** or **Without a link** says. Work they
+  did themselves takes one `event: "finished"`.
+- **They decline or do not answer:** do not offer again in this conversation.
+
+When you were sent the item, report without asking instead. Reading, answering
+a question or planning is not work: offer nothing for it.
 
 ## Do not
 
