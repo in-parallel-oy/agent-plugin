@@ -43,7 +43,12 @@ const shell = (file, command, output, extra = {}) => respond({ hook_event_name: 
 test('a prompt with an In Parallel link gets a reminder to report started if it works on the item', () => {
   const output = respond({ hook_event_name: 'UserPromptSubmit', prompt: SEND })
   assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptSubmit')
-  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`link ${LINK}\\. If you work on this item, call report_back`))
+  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`link ${LINK}\\. Report on it with report_back and that link as the request needs\\.`))
+  assert.match(output.hookSpecificOutput.additionalContext, /If you work on this item, report "started" before you begin/)
+  // A note-only request is not told to start and finish.
+  assert.match(output.hookSpecificOutput.additionalContext, /Asked only to add a note\? Report just that "note", in the person's words: no "started" and no "finished"\./)
+  assert.ok(output.hookSpecificOutput.additionalContext.indexOf('Asked only to add a note') < output.hookSpecificOutput.additionalContext.indexOf('"started" before you begin'))
+  assert.match(output.hookSpecificOutput.additionalContext, /Told not to report\? Do not report\./)
   assert.match(output.hookSpecificOutput.additionalContext, /answering questions about it is not work/)
   assert.match(output.hookSpecificOutput.additionalContext, /Asked only for a plan\? Give it and do not start\./)
   assert.match(output.hookSpecificOutput.additionalContext, /Work not done is a "note" saying what remains, not "finished"\./)

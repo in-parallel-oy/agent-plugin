@@ -192,9 +192,10 @@ function respond(input) {
   if (event === 'UserPromptSubmit') {
     const links = [...new Set(String(input.prompt || '').match(LINK) || [])].slice(0, 3)
     if (!links.length) return null
-    return context(event, `This prompt carries the In Parallel link ${links.join(', ')}. ` +
-      'If you work on this item, call report_back with that link and event "started" before you begin, and when the work is done, report "finished" with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
-      'Reading it or answering questions about it is not work: do not report. Asked only for a plan? Give it and do not start.')
+    return context(event, `This prompt carries the In Parallel link ${links.join(', ')}. Report on it with report_back and that link as the request needs. ` +
+      'Asked only to add a note? Report just that "note", in the person\'s words: no "started" and no "finished". ' +
+      'If you work on this item, report "started" before you begin, and when the work is done, report "finished" with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
+      'Reading it or answering questions about it is not work: do not report. Asked only for a plan? Give it and do not start. Told not to report? Do not report.')
   }
   if (event === 'PostToolUse') {
     const command = commandText(input.tool_input)
