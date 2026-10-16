@@ -33,9 +33,9 @@ or to put the item down, report `released` too.
 Report state changes, not activity: started, finished, and finished with
 `close: false` when a part of the work is genuinely finished, such as your
 share while others still work on the item. A note is for a turning point the
-owner should know about, not a progress log. Progress, or a part still to
-come, such as a quote or a reply the work waits for, is a note, never a
-`finished`.
+owner should know about; routine activity is not reported. A part of the work
+still to come, such as a quote or a reply the work waits for, is a note, never
+a `finished`.
 
 Replies name the person you act for in `acting_for`. That is the person in
 this conversation unless they say otherwise; do not question it because a git
@@ -74,7 +74,9 @@ why you are stopping without reporting.
    ends your part, records your work and leaves the To do open. When the work
    looks incomplete, such as a TODO left or a step not done, ask the person
    before finishing, or report a `note` saying what remains and do not finish
-   yet. Work with no link, such as a file on their machine: finish with a
+   yet. The item stays started: if you stop there, answer the stop reminder by
+   saying what remains, with `waiting: true` when it waits on the person.
+   Work with no link, such as a file on their machine: finish with a
    `note` naming its path and leave `results` empty.
 5. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
