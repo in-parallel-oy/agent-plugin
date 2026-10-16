@@ -9,7 +9,7 @@ const { spawnSync } = require('node:child_process')
 const { tmp } = require('./test-helpers.cjs')
 
 const SCRIPT = path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js')
-const { respond, scan, REPORT_BACK } = require(SCRIPT)
+const { respond, scan, TAGGED } = require(SCRIPT)
 const LINK = 'in-parallel://acme/action_item/0a1b2c3d-1111-2222-3333-444455556666'
 const PR = 'https://github.com/acme/website/pull/42'
 const SERVER_TOOL = 'mcp__plugin_in-parallel_in_parallel__report_back'
@@ -179,10 +179,22 @@ test('report_back gets the session id as client_session, with every other argume
   assert.equal(respond(preToolUse({ tool_input: { ...ARGS, client_session: 'made-up' } })).hookSpecificOutput.updatedInput.client_session, 'session-1')
 })
 
-test('only In Parallel report_back calls are tagged or counted as reports', t => {
+test('In Parallel item reads get the session id as client_session too, so they can tell this conversation from its siblings', () => {
+  const READ = { observation_ids: [LINK] }
+  for (const tool of ['get_action_item', 'get_decision', 'get_risk', 'get_open_question', 'get_observations']) {
+    const name = `mcp__plugin_in-parallel_in_parallel__${tool}`
+    assert.deepEqual(respond(preToolUse({ tool_name: name, tool_input: READ })).hookSpecificOutput.updatedInput, { ...READ, client_session: 'session-1' }, name)
+    assert.ok(respond(preToolUse({ tool_name: `mcp__in_parallel__${tool}` })), tool)
+  }
+})
+
+test('only In Parallel report_back calls and item reads are tagged, and only report_back counts as a report', t => {
   for (const name of [SERVER_TOOL, 'mcp__in_parallel__report_back', 'mcp__in-parallel__report_back']) assert.ok(respond(preToolUse({ tool_name: name })), name)
-  for (const name of ['mcp__plugin_in-parallel_in_parallel__report_back_reminder', 'mcp__plugin_in-parallel_in_parallel__get_action_item',
+  for (const name of ['mcp__plugin_in-parallel_in_parallel__report_back_reminder', 'mcp__plugin_in-parallel_in_parallel__list_action_items',
+    'mcp__plugin_in-parallel_in_parallel__get_action_items', 'mcp__other__get_action_item',
     'mcp__other__report_back', 'report_back', 'Bash']) assert.equal(respond(preToolUse({ tool_name: name })), null, name)
+  // An item read is not a report.
+  assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__plugin_in-parallel_in_parallel__get_action_item', { action_item_id: '0a1b2c3d' })])), false)
   // The transcript scan agrees: another server's report_back is not a report.
   assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__other__report_back', { item_id: '0a1b2c3d', event: 'started' })])), false)
   const other = code('await tools.mcp__other__report_back({ item_id: "0a1b2c3d", event: "started" })')
@@ -193,7 +205,7 @@ test('only In Parallel report_back calls are tagged or counted as reports', t =>
   assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), mcpItem('other')])), false)
   // The hook's matcher is the same pattern.
   const [group] = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'claude.json'), 'utf8')).hooks.PreToolUse
-  assert.equal(group.matcher, REPORT_BACK.source)
+  assert.equal(group.matcher, TAGGED.source)
 })
 
 test('report_back without a session id or arguments is left as sent', () => {
