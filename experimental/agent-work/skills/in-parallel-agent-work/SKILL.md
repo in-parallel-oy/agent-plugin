@@ -1,6 +1,6 @@
 ---
 name: in-parallel-agent-work
-description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, when they say they started, are working on or finished something and ask you to update or report to In Parallel, or when work in the conversation, yours or theirs, such as a file written, a draft done or a fix made, plausibly finishes one of their To dos, even when nobody asks to report it.
+description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, when they say they started, are working on or finished something and ask you to update or report to In Parallel, or when work in the conversation, yours or theirs, such as a file written, a draft done or a fix made, plausibly finishes one of their To dos, even when nobody asks to report it, including when the person only mentions it as done or hands over a result, such as "the notes are in <path>", "I fixed it" or "draft's done".
 ---
 
 # Report work back on In Parallel items
@@ -31,8 +31,11 @@ give the plan and do not start. If you had already started, report
 or to put the item down, report `released` too.
 
 Report state changes, not activity: started, finished, and finished with
-`close: false` when only your part is done. A note is for a turning point the
-owner should know about, not a progress log.
+`close: false` when a part of the work is genuinely finished, such as your
+share while others still work on the item. A note is for a turning point the
+owner should know about, not a progress log. Progress, or a part still to
+come, such as a quote or a reply the work waits for, is a note, never a
+`finished`.
 
 Replies name the person you act for in `acting_for`. That is the person in
 this conversation unless they say otherwise; do not question it because a git
@@ -70,9 +73,9 @@ why you are stopping without reporting.
    not, such as when others still work on it, finish with `close: false`: that
    ends your part, records your work and leaves the To do open. When the work
    looks incomplete, such as a TODO left or a step not done, ask the person
-   before finishing, or finish only your part with `close: false` and say in
-   a note what remains. Work with no link, such as a file on their machine:
-   finish with a `note` naming its path and leave `results` empty.
+   before finishing, or report a `note` saying what remains and do not finish
+   yet. Work with no link, such as a file on their machine: finish with a
+   `note` naming its path and leave `results` empty.
 5. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
@@ -102,7 +105,8 @@ a reminder will come; report when the state changes.
 
 When the person says they did the work themselves, one `event: "finished"`
 report is enough: no start or re-read, and `results` only if they gave a
-link.
+link. When they did only part of it and the rest is still to come, such as an
+email sent and the answer awaited, report a `note` saying so instead.
 
 When an item read or a `report_back` reply says people outside the company can
 read the item, write your notes so they can read them too. Leave out internal details, such as
@@ -169,17 +173,20 @@ reporting back is not available in this In Parallel connection.
 When work in the conversation plausibly finishes one of the person's To dos
 and they have not asked you to report it, such as a file you or they wrote, a
 draft done or a fix made, offer once to record it in In Parallel, even though
-nobody asked. This holds when they only tell you, as in "The release notes are
-in docs/release-notes.md": reading the file to check it does not make the work
-yours, but it is still work done. Say it in one line, such as "Shall I record
+nobody asked. This holds when they only mention it as done or hand you the
+result, as in "The release notes are in docs/release-notes.md", "I fixed it"
+or "Draft's done": that is work they did, not reading. Reading the file to
+check it does not make it yours, and doubts about it are worth saying, but
+they do not cancel the offer. Say it in one line, such as "Shall I record
 this as done on your To do Write release notes?". To name the To do, you may
 first call `report_back` with only a `note` describing the work; that lookup
 records nothing, and a lookup's "report on it" waits for their yes. If the
 lookup finds no To do for the work, offer once to create a To do for it, as
 **Without a link** says: create it, and report on it, only once they agree.
 
-- **They agree:** report as **Report** or **Without a link** says. Work they
-  did themselves takes one `event: "finished"`.
+- **They agree:** report as **Report** or **Without a link** says. Finished
+  work they did themselves takes one `event: "finished"`; part done with the
+  rest still to come takes a `note`.
 - **They decline or do not answer:** do not offer again in this conversation.
 
 When you were sent the item, report without asking instead. Reading, answering

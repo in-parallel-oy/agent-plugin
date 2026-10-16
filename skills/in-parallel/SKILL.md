@@ -1,6 +1,6 @@
 ---
 name: in-parallel
-description: Reads team context in In Parallel and records findings when asked. Use for workspace catch-ups, meetings, decisions, risks, action items, goals, team wiki questions, reusable findings or In Parallel links.
+description: Reads team context in In Parallel and records findings when asked. Use for workspace catch-ups, meetings, decisions, risks, action items, goals, team wiki questions, reusable findings or In Parallel links, and when work in the conversation, yours or the person's, such as "the notes are in <path>" or "I fixed it", may finish one of their To dos.
 ---
 
 # Working with In Parallel
@@ -11,7 +11,8 @@ workspaces.
 When the person asks you to update or report to In Parallel about work done or
 in progress, such as "Update In Parallel" after a task, load the
 `in-parallel-agent-work` skill, if installed, and follow it. Load it too when
-work in the conversation, yours or theirs, may finish one of their To dos: it
+work in the conversation, yours or theirs, may finish one of their To dos,
+including work they only mention as done, such as "the notes are in <path>": it
 says when to offer once to record it. Without it, call `report_back` as its
 tool description says. Either way that reports the work on its item and is not
 publishing: do not look up workspaces, search pages or ask where to publish.

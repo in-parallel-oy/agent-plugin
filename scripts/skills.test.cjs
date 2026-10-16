@@ -10,6 +10,8 @@ const RULES = {
   'skills/in-parallel/SKILL.md': [
     'such as "Update In Parallel" after a task, load the `in-parallel-agent-work` skill',
     'Load it too when work in the conversation, yours or theirs, may finish one of their To dos',
+    'including work they only mention as done, such as "the notes are in <path>"',
+    'such as "the notes are in <path>" or "I fixed it", may finish one of their To dos',
   ],
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
@@ -35,6 +37,15 @@ const RULES = {
     'If the lookup finds no To do for the work, offer once to create a To do for it, as **Without a link** says: create it, and report on it, only once they agree',
     'that lookup records nothing, and a lookup\'s "report on it" waits for their yes',
     'When the person skips In Parallel\'s question, none of the choices is the work',
+    'including when the person only mentions it as done or hands over a result, such as "the notes are in <path>", "I fixed it" or "draft\'s done"',
+    'This holds when they only mention it as done or hand you the result',
+    'that is work they did, not reading',
+    'they do not cancel the offer',
+    '`close: false` when a part of the work is genuinely finished',
+    'Progress, or a part still to come, such as a quote or a reply the work waits for, is a note, never a `finished`',
+    'report a `note` saying what remains and do not finish yet',
+    'When they did only part of it and the rest is still to come',
+    'part done with the rest still to come takes a `note`',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     '**Start.** Read the picked To do with `get_action_item`, then call `report_back` with `event: "started"`',
@@ -53,6 +64,8 @@ const RETIRED = {
     'pull request: `[{"label": "Pull request"',
     'When others still work on the item, finish only your part',
     'drop the item',
+    'finish only your part with `close: false` and say in a note what remains',
+    '`close: false` when only your part is done',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     'put down',
