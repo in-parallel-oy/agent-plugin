@@ -48,7 +48,9 @@ test('a prompt with an In Parallel link gets a reminder to report started if it 
   // A note-only request is not told to start and finish.
   assert.match(output.hookSpecificOutput.additionalContext, /Asked only to add a note\? Report just that "note", in the person's words: no "started" and no "finished"\./)
   assert.ok(output.hookSpecificOutput.additionalContext.indexOf('Asked only to add a note') < output.hookSpecificOutput.additionalContext.indexOf('"started" before you begin'))
-  assert.match(output.hookSpecificOutput.additionalContext, /Told not to report\? Do not report\./)
+  // "Do not report anything else" still reports the start it asked for.
+  assert.match(output.hookSpecificOutput.additionalContext, /Told not to report \(anything else\)\? Report only what they asked for\./)
+  assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /Do not report\./)
   assert.match(output.hookSpecificOutput.additionalContext, /answering questions about it is not work/)
   assert.match(output.hookSpecificOutput.additionalContext, /Asked only for a plan\? Give it and do not start\./)
   assert.match(output.hookSpecificOutput.additionalContext, /Work not done is a "note" saying what remains, not "finished"\./)
