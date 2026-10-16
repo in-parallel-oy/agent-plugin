@@ -189,7 +189,17 @@ test('In Parallel item reads get the session id as client_session too, so they c
   }
 })
 
-test('only In Parallel report_back calls and item reads are tagged, and only report_back counts as a report', t => {
+test('In Parallel item closes get the session id as client_session, so a Claude Code close finishes only this conversation\'s start', () => {
+  const CLOSES = { close_action_items: { action_item_ids: [LINK], resolution: 'Shipped' }, update_action_item: { action_item_id: LINK, status: 'done' } }
+  for (const [tool, args] of Object.entries(CLOSES)) {
+    const name = `mcp__plugin_in-parallel_in_parallel__${tool}`
+    assert.deepEqual(respond(preToolUse({ tool_name: name, tool_input: args })).hookSpecificOutput.updatedInput, { ...args, client_session: 'session-1' }, name)
+    assert.ok(respond(preToolUse({ tool_name: `mcp__in_parallel__${tool}`, tool_input: args })), tool)
+    assert.equal(respond(preToolUse({ tool_name: `mcp__other__${tool}`, tool_input: args })), null, tool)
+  }
+})
+
+test('only In Parallel report_back calls, item closes and item reads are tagged, and only report_back counts as a report', t => {
   for (const name of [SERVER_TOOL, 'mcp__in_parallel__report_back', 'mcp__in-parallel__report_back']) assert.ok(respond(preToolUse({ tool_name: name })), name)
   for (const name of ['mcp__plugin_in-parallel_in_parallel__report_back_reminder', 'mcp__plugin_in-parallel_in_parallel__list_action_items',
     'mcp__plugin_in-parallel_in_parallel__get_action_items', 'mcp__other__get_action_item',

@@ -214,9 +214,11 @@ The plugin's hooks scope reminders to the conversation. In Claude Code, the
 conversation's session id, and a `PreToolUse` hook (`scripts/reminders.js`) adds
 the same id as `client_session` to each `report_back` call, so only the
 conversation that reported an item started is reminded about it. The hook adds
-it to each item read too (`get_action_item`, `get_decision`, `get_risk`,
-`get_open_question`, `get_observations`), so a read lists your other
-conversations working on the item. Neither reads a transcript, sign-in or
+it to each item close too (`close_action_items`, `update_action_item`), so a
+close finishes only this conversation's start and leaves your other
+conversations' starts on the item, and to each item read (`get_action_item`,
+`get_decision`, `get_risk`, `get_open_question`, `get_observations`), so a read
+lists your other conversations working on the item. Neither reads a transcript, sign-in or
 setting. Codex names its conversation thread itself,
 as it does on every tool call, and In Parallel scopes reminders to that thread
 when Codex uses the newest protocol revision; otherwise any of your Codex

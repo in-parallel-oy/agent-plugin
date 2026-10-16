@@ -6,11 +6,13 @@
 // Stop hook asks In Parallel's report_back_reminder tool through the client's
 // own connection.
 //
-// Before Claude Code calls In Parallel's report_back or an item read (get_action_item,
+// Before Claude Code calls In Parallel's report_back, an item close
+// (close_action_items, update_action_item) or an item read (get_action_item,
 // get_decision, get_risk, get_open_question, get_observations), it adds this
 // conversation's session id as client_session, so In Parallel scopes the stop
 // reminder to the conversation that reported, as the Stop hook does with the same
-// id, and an item read lists the person's other conversations working on the item.
+// id, a close finishes only this conversation's start, and an item read lists the
+// person's other conversations working on the item.
 // Every other argument is kept as sent, and permission is left to the person's
 // normal rules.
 //
@@ -30,7 +32,7 @@ const IN_PARALLEL_SERVER = new RegExp(`^${SERVER}$`)
 // In Parallel's report_back as the client names it.
 const REPORT_BACK = new RegExp(`^mcp__${SERVER}__report_back$`)
 // The In Parallel tools that take client_session; the Claude Code hook matcher too.
-const TAGGED = new RegExp(`^mcp__${SERVER}__(report_back|get_action_item|get_decision|get_risk|get_open_question|get_observations)$`)
+const TAGGED = new RegExp(`^mcp__${SERVER}__(report_back|close_action_items|update_action_item|get_action_item|get_decision|get_risk|get_open_question|get_observations)$`)
 // Codex code mode calls tools from JavaScript: tools.mcp__in_parallel__report_back({ event: "finished", ... }).
 const CODE_CALL = new RegExp(`(?<![\\w-])(mcp__${SERVER}__)?report_back\\s*\\(`, 'g')
 const CODE_EVENT = /\bevent\b["'\s:]{0,8}(started|note|finished|released)\b/
