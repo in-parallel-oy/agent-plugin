@@ -54,6 +54,8 @@ const RULES = {
     'report a `note` saying what remains and do not finish yet',
     'When they did only part of it and the rest is still to come',
     'part done with the rest still to come takes a `note`',
+    'To close an item on your own reported work, also once you finished an earlier share with `close: false` and the rest is now done, report `finished` with `report_back`, not `close_action_items` or `update_action_item`',
+    'report the work with `report_back`, closing included',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     '**Start.** Read the picked To do with `get_action_item`, then call `report_back` with `event: "started"`',
@@ -77,6 +79,7 @@ const RETIRED = {
     'When the person tells you to stop here',
     'when the person tells you to stop here',
     'When your part is done but the To do is not',
+    'Only change the status with `update_action_item` or similar',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     'put down',
