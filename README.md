@@ -137,7 +137,9 @@ others still work on it, it finishes with `close: false`: that ends its part
 and leaves the To do open. Before finishing, your assistant
 reads the item again to see what people changed while it worked. When the work
 looks incomplete, such as a TODO left or a step not done, it asks you before
-finishing, or finishes only its part with `close: false` and says what remains.
+finishing, or reports a note saying what remains and leaves the item started,
+not finished: `close: false` is only for a part that is genuinely finished.
+Progress and a part still to come are notes too.
 In Parallel's replies name the person it acts for in `acting_for`: the person
 its In Parallel connection reports for, usually you. When In Parallel says
 people outside your company can read the item, your assistant writes its notes
