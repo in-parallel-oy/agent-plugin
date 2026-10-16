@@ -58,12 +58,22 @@ const RULES = {
     'To close an item on your own reported work, also once you finished an earlier share with `close: false` and the rest is now done, report `finished` with `report_back`, not `close_action_items` or `update_action_item`',
     'report the work with `report_back`, closing included',
     'When a stop reminder names an item you worked on, answer it once, by the first case that fits',
-    '**Told to stop for now or to do nothing more**, such as "then stop" or "don\'t do anything else": send no report, not even a note, and do not release; tell the person what remains, and stop',
+    '**Told to stop for now or to do nothing more, with nothing awaited from the person**, such as "then stop" or "don\'t do anything else": send no report, not even a note, and do not release; tell the person what remains, and stop',
+    '**Waiting on the person**, such as for a go-ahead, an approval or an answer, also when they told you to stop and wait: report a `note` with `waiting: true`, unless you already sent one',
+    'tell them what remains, and send no other report. When they also say to wait for them, such as "stop and wait for my go-ahead", report the waiting note **Wait** describes before you stop',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     '**Start.** Read the picked To do with `get_action_item`, then call `report_back` with `event: "started"`',
     'Read it again before any later start',
     'report as the `in-parallel-agent-work` skill says, from its Report step 2 on',
+  ],
+}
+
+// The stop reminder's cases apply first-fit, so a case must come before the cases it overrides.
+const ORDER = {
+  'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
+    // "Stop and wait for my go-ahead" both stops and waits: the waiting note must win.
+    ['- **Waiting on the person', '- **Told to stop for now'],
   ],
 }
 
@@ -88,6 +98,7 @@ const RETIRED = {
     'When your part is done but the To do is not',
     'Only change the status with `update_action_item` or similar',
     'the stop reminder handles the rest',
+    'send nothing more',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     'put down',
@@ -101,5 +112,16 @@ for (const [file, phrases] of Object.entries(RULES)) {
     const text = read(file)
     for (const phrase of phrases) assert.ok(text.includes(phrase), phrase)
     for (const phrase of RETIRED[file] ?? []) assert.ok(!text.includes(phrase), `retired: ${phrase}`)
+  })
+}
+
+for (const [file, pairs] of Object.entries(ORDER)) {
+  test(`${file} keeps its first-fit order`, () => {
+    const text = read(file)
+    for (const [first, then] of pairs) {
+      const [a, b] = [text.indexOf(first), text.indexOf(then)]
+      assert.ok(a >= 0 && b >= 0, `${first} / ${then}`)
+      assert.ok(a < b, `${first} comes before ${then}`)
+    }
   })
 }

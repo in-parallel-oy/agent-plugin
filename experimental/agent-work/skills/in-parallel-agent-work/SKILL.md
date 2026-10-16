@@ -31,7 +31,9 @@ give the plan and do not start. If you had already started, report
 down or hand it on, report `released` too. `released` is for putting the work
 down, not for ending your turn: when the person says "then stop", "stop
 there" or "don't do anything else" after a step, they mean end this turn, so
-your start stays open; tell them what remains, and send nothing more.
+your start stays open; tell them what remains, and send no other report.
+When they also say to wait for them, such as "stop and wait for my
+go-ahead", report the waiting note **Wait** describes before you stop.
 
 Report state changes, not activity: started, finished, and finished with
 `close: false` when a part of the work is genuinely finished, such as your
@@ -123,12 +125,14 @@ a reminder will come; report when the state changes.
 When a stop reminder names an item you worked on, answer it once, by the
 first case that fits:
 
-- **Told to stop for now or to do nothing more**, such as "then stop" or
-  "don't do anything else": send no report, not even a note, and do not
-  release; tell the person what remains, and stop. A note you already sent
-  stays as it is.
 - **Told not to report:** tell the person why you stop without reporting.
-- **Waiting on the person:** report a `note` with `waiting: true`.
+- **Waiting on the person**, such as for a go-ahead, an approval or an
+  answer, also when they told you to stop and wait: report a `note` with
+  `waiting: true`, unless you already sent one.
+- **Told to stop for now or to do nothing more, with nothing awaited from the
+  person**, such as "then stop" or "don't do anything else": send no report,
+  not even a note, and do not release; tell the person what remains, and
+  stop. A note you already sent stays as it is.
 - **Put down, handed over or asked only for a plan:** report `released`.
 - **Work done:** report `finished` with `results`.
 - **Otherwise:** tell the person what remains, and stop.
