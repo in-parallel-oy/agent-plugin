@@ -21,8 +21,8 @@ asks you to check with them before reporting.
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
 and do not report. A file written, a draft done or a fix made is work, whether
-you did it or the person tells you they did. Never finish a To do you did not work on
-unless the person asks you to report it.
+you did it or the person tells you they did. Never finish a To do you did not
+work on unless the person asks you to report it.
 
 One rule for start, plan and stop: start only when you are going to do the
 work. When the person asks only for a plan, such as "tell me your plan",

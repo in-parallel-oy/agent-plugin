@@ -13,9 +13,8 @@ in progress, such as "Update In Parallel" after a task, load the
 `in-parallel-agent-work` skill, if installed, and follow it. Load it too when
 work in the conversation, yours or theirs, may finish one of their To dos: it
 says when to offer once to record it. Without it, call `report_back` as its
-tool description says. Either way that reports the work
-on its item and is not publishing: do not look up workspaces, search pages or
-ask where to publish.
+tool description says. Either way that reports the work on its item and is not
+publishing: do not look up workspaces, search pages or ask where to publish.
 
 ## Find context
 
