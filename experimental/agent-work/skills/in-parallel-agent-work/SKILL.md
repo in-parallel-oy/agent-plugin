@@ -174,7 +174,9 @@ in docs/release-notes.md": reading the file to check it does not make the work
 yours, but it is still work done. Say it in one line, such as "Shall I record
 this as done on your To do Write release notes?". To name the To do, you may
 first call `report_back` with only a `note` describing the work; that lookup
-records nothing.
+records nothing. If the lookup finds no To do for the work, offer once to
+create a To do for it, as **Without a link** says: create it, and report on
+it, only once they agree.
 
 - **They agree:** report as **Report** or **Without a link** says. Work they
   did themselves takes one `event: "finished"`.

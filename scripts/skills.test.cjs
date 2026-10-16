@@ -32,6 +32,7 @@ const RULES = {
     'plausibly finishes one of their To dos, even when nobody asks to report it',
     'A file written, a draft done or a fix made is work, whether you did it or the person tells you they did',
     'When you were sent the item, report without asking instead',
+    'If the lookup finds no To do for the work, offer once to create a To do for it, as **Without a link** says: create it, and report on it, only once they agree',
     'When the person skips In Parallel\'s question, none of the choices is the work',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
