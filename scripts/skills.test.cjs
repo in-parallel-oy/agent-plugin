@@ -57,6 +57,8 @@ const RULES = {
     'part done with the rest still to come takes a `note`',
     'To close an item on your own reported work, also once you finished an earlier share with `close: false` and the rest is now done, report `finished` with `report_back`, not `close_action_items` or `update_action_item`',
     'report the work with `report_back`, closing included',
+    'When a stop reminder names an item you worked on, answer it once, by the first case that fits',
+    '**Told to stop for now or to do nothing more**, such as "then stop" or "don\'t do anything else": send no report, not even a note, and do not release; tell the person what remains, and stop',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     '**Start.** Read the picked To do with `get_action_item`, then call `report_back` with `event: "started"`',
@@ -85,6 +87,7 @@ const RETIRED = {
     'when the person tells you to stop here',
     'When your part is done but the To do is not',
     'Only change the status with `update_action_item` or similar',
+    'the stop reminder handles the rest',
   ],
   'experimental/agent-work/skills/work-on/SKILL.md': [
     'put down',

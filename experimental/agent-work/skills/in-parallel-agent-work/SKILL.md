@@ -29,9 +29,9 @@ work. When the person asks only for a plan, such as "tell me your plan",
 give the plan and do not start. If you had already started, report
 `released` once you have told them. When the person asks you to put the item
 down or hand it on, report `released` too. `released` is for putting the work
-down, not for ending your turn: when the person says "then stop" or "stop
-there" after a step, they mean end this turn, so your start stays open; tell
-them what remains, and the stop reminder handles the rest.
+down, not for ending your turn: when the person says "then stop", "stop
+there" or "don't do anything else" after a step, they mean end this turn, so
+your start stays open; tell them what remains, and send nothing more.
 
 Report state changes, not activity: started, finished, and finished with
 `close: false` when a part of the work is genuinely finished, such as your
@@ -119,6 +119,19 @@ Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
 person trusts them in `/hooks`. Other clients have none. Never tell the person
 a reminder will come; report when the state changes.
+
+When a stop reminder names an item you worked on, answer it once, by the
+first case that fits:
+
+- **Told to stop for now or to do nothing more**, such as "then stop" or
+  "don't do anything else": send no report, not even a note, and do not
+  release; tell the person what remains, and stop. A note you already sent
+  stays as it is.
+- **Told not to report:** tell the person why you stop without reporting.
+- **Waiting on the person:** report a `note` with `waiting: true`.
+- **Put down, handed over or asked only for a plan:** report `released`.
+- **Work done:** report `finished` with `results`.
+- **Otherwise:** tell the person what remains, and stop.
 
 When the person says they did the work themselves, one `event: "finished"`
 report is enough: no start or re-read, and `results` only if they gave a
