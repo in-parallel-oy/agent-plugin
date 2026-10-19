@@ -600,7 +600,6 @@ function uninstall(agent, { home = os.homedir(), cwd = process.cwd(), execute = 
   const root = target(agent, home)
   const state = survey(agent, root, execute, managed(root, agent), cwd)
   if (state.elsewhere) throw elsewhereError(agent)
-  if (!dryRun) removeJournalCache(home, log)
   const kept = [...state.foreign, ...state.others].map(plugin => projectCopy(agent, plugin)
     ? `${agent.name}: kept ${pluginId(plugin)}. ${projectScope(plugin, cwd, false)}`
     : `${agent.name}: kept ${pluginId(plugin)}; setup did not install it.`)
@@ -650,36 +649,10 @@ function uninstall(agent, { home = os.homedir(), cwd = process.cwd(), execute = 
   } finally { if (lines.length) log(lines.join('\n')) }
 }
 
-const LAST_CHECK = home => path.join(home, '.in-parallel', 'setup', 'last-check.json')
-
-function lastChecks(home) {
-  try { return JSON.parse(fs.readFileSync(LAST_CHECK(home), 'utf8')) } catch { return {} }
-}
-
-function recordCheck(home, agent, error, checks) {
-  if (error) checks[agent.id] = { error, at: new Date().toISOString() }
-  else if (checks[agent.id]) delete checks[agent.id]
-  else return
-  fs.mkdirSync(path.dirname(LAST_CHECK(home)), { recursive: true, mode: 0o700 })
-  fs.writeFileSync(LAST_CHECK(home), json(checks), { mode: 0o600 })
-}
-
 // Doctor reports installed state: files, registrations and settings it can read.
 // Whether In Parallel actually reaches the agent only the agent can check.
-function doctor(agent, { home = os.homedir(), cwd = process.cwd(), env = process.env, source, execute = run, log = console.log } = {}) {
-  removeJournalCache(home, log)
-  const checks = lastChecks(home)
-  try {
-    diagnose(agent, { home, cwd, env, source, execute, log }, checks[agent.id])
-    recordCheck(home, agent, null, checks)
-  } catch (error) {
-    recordCheck(home, agent, error.message, checks)
-    throw error
-  }
-}
-
 // Every location is listed before the first error is thrown, so an error never hides them.
-function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
+function doctor(agent, { home = os.homedir(), cwd = process.cwd(), env = process.env, source, execute = run, log = console.log } = {}) {
   const root = target(agent, home)
   let failure = null
   let receipt = null
@@ -697,8 +670,7 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
     ...locations.flatMap(({ location, status, fix, message }) => [`  ${location}: ${status}`, ...(fix ? [`    ${message}`] : [])]),
     ...notes.map(note => `  ${note}`)].join('\n'))
   if (failure) throw failure
-  const lastFailure = previous ? `\nLast failed check: ${previous.at}: ${previous.error}` : ''
-  if (!receipt) { log(`${agent.name}: no setup-managed installation.${lastFailure}`); return }
+  if (!receipt) { log(`${agent.name}: no setup-managed installation.`); return }
   // Rerunning setup cannot fix a marketplace that points elsewhere, so it comes first.
   if (state?.elsewhere) throw elsewhereError(agent)
   const installedFeatures = receipt.experimental || RETIRED
@@ -718,7 +690,7 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
     if (!matches(state.installed, receipt)) throw new Error('Prepared files do not match an enabled native installation. Run setup again.')
   }
   verifyMcp(agent, receipt.endpoint, execute)
-  log(`${agent.name} installed: files match the setup receipt${agent.command ? `; ${agent.name} reports version ${receipt.version} enabled` : '; Cursor discovers the folder when it reloads'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; no conflicting entry in the locations above; runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\n${agent.name} working: not verified by setup. To verify, ${verify(installedFeatures)}${lastFailure}\n${instructions(agent, hooked(receipt))}`)
+  log(`${agent.name} installed: files match the setup receipt${agent.command ? `; ${agent.name} reports version ${receipt.version} enabled` : '; Cursor discovers the folder when it reloads'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; no conflicting entry in the locations above; runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\n${agent.name} working: not verified by setup. To verify, ${verify(installedFeatures)}\n${instructions(agent, hooked(receipt))}`)
 }
 
 module.exports = { AGENTS, SOURCE, PRODUCTION, DEVELOPMENT, LOOPBACK_HOSTS, MARKETPLACE, PLUGIN, PLUGIN_DIR, RECEIPT, ReplacementRequired, json, writeFiles, endpoint, target, bundle, pluginFiles, managed, install, uninstall, doctor }

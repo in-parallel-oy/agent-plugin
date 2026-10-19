@@ -94,9 +94,11 @@ for (const agent of setup.AGENTS) {
     setup.install(agent, 'https://in-parallel.example/mcp', options)
     assert.deepEqual(setup.managed(root, agent), first)
     assert.equal(native.marketplaces.length, agent.command ? 1 : 0)
+    // Doctor changes nothing, the retired cache included.
     journalCache(home)
+    const cached = remaining()
     setup.doctor(agent, options)
-    assert.deepEqual(remaining(), ['keep.txt'])
+    assert.deepEqual(remaining(), cached)
     assert.ok(logs.some(line => /To verify, ask your agent: Check my In Parallel connection\.\n/.test(line)))
     assert.ok(!logs.some(line => /Experimental|Send to AI|work journal setup|hooks/.test(line)))
     const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
@@ -108,12 +110,10 @@ for (const agent of setup.AGENTS) {
       assert.deepEqual(JSON.parse(fs.readFileSync(path.join(plugin, file), 'utf8')), expected)
     }
     assert.equal(fs.existsSync(path.join(plugin, 'scripts')), false)
-    journalCache(home)
     setup.uninstall(agent, options)
     assert.equal(fs.existsSync(root), false)
     assert.equal(native.plugins.length, 0)
     assert.equal(native.marketplaces.length, 0)
-    assert.deepEqual(remaining(), ['keep.txt'])
   })
 
   test(`${agent.name}: dry run makes no files or native mutations`, t => {
@@ -550,8 +550,7 @@ test('noninteractive setup and unsupported agent flags fail before prompting; he
   const run = args => spawnSync(process.execPath, [path.join(__dirname, 'setup.js'), ...args], { encoding: 'utf8', timeout: 5000 })
   const help = run(['--help'])
   assert.equal(help.status, 0)
-  // Doctor is not read-only: it says what it writes and deletes.
-  assert.match(help.stdout, /doctor[\s\S]*last-check\.json[\s\S]*retired work journal cache/)
+  assert.match(help.stdout, /doctor +Check setup-managed installations without changing anything/)
   const pipe = run([])
   assert.equal(pipe.status, 1)
   assert.match(pipe.stderr, /interactive terminal/)
@@ -998,7 +997,8 @@ for (const agent of setup.AGENTS) {
     const report = logs.join('\n')
     assert.ok(report.includes(`${file} (user scope): unreadable`), report)
     assert.match(report, /no setup-managed installation/)
-    assert.equal(fs.existsSync(path.join(home, '.in-parallel', 'setup', 'last-check.json')), false)
+    // Doctor writes nothing.
+    assert.equal(fs.existsSync(path.join(home, '.in-parallel')), false)
   })
 }
 
@@ -1104,9 +1104,8 @@ for (const agent of setup.AGENTS) {
     if (agent.id === 'cursor') assert.ok(report.includes(`${setup.target(agent, home)} (user plugin folder): found`))
     assert.match(report, /installed: files match the setup receipt/)
     assert.match(report, /working: not verified by setup\. To verify, ask your agent: Check my In Parallel connection\./)
-    assert.doesNotMatch(report, /Last failed check/)
 
-    // A conflicting entry is reported as such; the next run says when the last check failed and why.
+    // A conflicting entry is reported as such, and passes again once corrected.
     fs.writeFileSync(config[0], config[1].replace(PRODUCTION, 'https://elsewhere.test/mcp'))
     if (agent.id === 'codex') native.mcp = { enabled: true, transport: { type: 'streamable_http', url: 'https://elsewhere.test/mcp' } }
     logs.length = 0
@@ -1116,10 +1115,7 @@ for (const agent of setup.AGENTS) {
     native.mcp = undefined
     logs.length = 0
     setup.doctor(agent, options)
-    assert.match(logs.join('\n'), /Last failed check: \d{4}-\d\d-\d\dT[^:]+:\d\d:[\d.]+Z: .+/)
-    logs.length = 0
-    setup.doctor(agent, options)
-    assert.doesNotMatch(logs.join('\n'), /Last failed check/)
+    assert.match(logs.join('\n'), /installed: files match the setup receipt/)
   })
 }
 

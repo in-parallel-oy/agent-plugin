@@ -7,7 +7,7 @@ async function main(args = process.argv.slice(2), {
   prompts, home, cwd, env, interactive = process.stdin.isTTY && process.stdout.isTTY, operations = setup,
 } = {}) {
   if (args.includes('--help') || args.includes('-h')) {
-    console.log('In Parallel setup\n\n  in-parallel             Choose agents and install interactively\n  in-parallel --dry-run   Preview an interactive installation\n  in-parallel doctor      Check setup-managed installations. Changes no installation or setting;\n                          writes ~/.in-parallel/setup/last-check.json and deletes the\n                          retired work journal cache in ~/.in-parallel if present\n  in-parallel uninstall   Choose agents to remove interactively\n\nFrom a checkout: node scripts/setup.js [command]\nInstalls for your user. Node 20.12+ required; Claude Code and Codex CLI need their CLIs on PATH.\nClaude Desktop Chat/Cowork and ChatGPT: use the app plugin browser; see README.md.\nBuild uploadable bundles: node scripts/package.js --help')
+    console.log('In Parallel setup\n\n  in-parallel             Choose agents and install interactively\n  in-parallel --dry-run   Preview an interactive installation\n  in-parallel doctor      Check setup-managed installations without changing anything\n  in-parallel uninstall   Choose agents to remove interactively\n\nFrom a checkout: node scripts/setup.js [command]\nInstalls for your user. Node 20.12+ required; Claude Code and Codex CLI need their CLIs on PATH.\nClaude Desktop Chat/Cowork and ChatGPT: use the app plugin browser; see README.md.\nBuild uploadable bundles: node scripts/package.js --help')
     return 0
   }
   const actions = args.filter(arg => !arg.startsWith('-'))

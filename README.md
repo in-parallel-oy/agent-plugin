@@ -104,12 +104,7 @@ credential header was added without printing it. It always shows the endpoint
 setup installed, even when a check fails. Without a setup copy, `doctor` lists
 any project copy setup did not install, says it can stay, and gives the command
 that removes it. It checks what is installed, not that it works: to check that,
-ask your agent "Check my In Parallel connection". When the previous `doctor`
-run failed, it shows that error and when.
-
-`doctor` changes no installation or setting, but it is not read-only: it
-records the result in `~/.in-parallel/setup/last-check.json` and deletes the
-retired work journal cache described below.
+ask your agent "Check my In Parallel connection". `doctor` changes nothing.
 
 ### Uninstall
 
@@ -126,8 +121,8 @@ It stops without removing a file that changed since setup wrote it.
 If you installed from a plugin browser, remove **In Parallel** there.
 
 Earlier versions had an experimental work journal that kept a local cache in
-`~/.in-parallel`. Setup, `doctor` and `uninstall` delete that cache, and `doctor`
-asks you to run setup again if the work journal is still installed.
+`~/.in-parallel`. Setup deletes that cache, and `doctor` asks you to run setup
+again if the work journal is still installed.
 
 ## Experimental features
 
