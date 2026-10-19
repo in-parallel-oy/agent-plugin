@@ -32,7 +32,7 @@ const RULES = {
     'When the person asks you to put the item down or hand it on, report `released` too',
     '`released` is for putting the work down, not for ending your turn',
     'When the person asks you to start the item, such as "Start this and tell me your plan, but wait for my go-ahead", report `started`, give the plan and report the waiting note **Wait** describes',
-    '`get_observations` (the link in `ids`) when you do not know the kind',
+    '`get_observations` (the link in `observation_ids`) when you do not know the kind',
     'A waiting note goes with a start of yours: when you did not start, send none',
     'they mean end this turn, so your start stays open',
     'Not when the person only ends your turn, such as "then stop": your start stays open',
