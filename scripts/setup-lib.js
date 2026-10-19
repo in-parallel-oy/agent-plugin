@@ -12,7 +12,9 @@ const AGENTS = [
   { id: 'cursor', name: 'Cursor', command: null },
 ]
 const SOURCE = path.resolve(__dirname, '..')
-const PRODUCTION = JSON.parse(fs.readFileSync(path.join(SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
+// What plugin directories install. Setup tooling and experimental features stay outside it.
+const plugin = source => path.join(source, 'plugins', 'in-parallel')
+const PRODUCTION = JSON.parse(fs.readFileSync(path.join(plugin(SOURCE), 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 // Features the server still gates per company. Store listings ship without
 // them; setup adds each experimental/<feature> folder for the Development environment only:
 // its skills, and its hooks/<agent>.json with its scripts where that client has hooks.
@@ -192,22 +194,23 @@ function pluginFiles(agent, url, { hooks = true, source = SOURCE } = {}) {
   url = endpoint(url)
   const files = {}
   const manifestPath = manifestFile(agent)
-  const manifest = JSON.parse(fs.readFileSync(path.join(source, manifestPath)))
-  for (const root of ['', ...experimentalFor(url).map(feature => path.join('experimental', feature))]) {
-    for (const [name, content] of Object.entries(tree(path.join(source, root, 'skills')))) files[`skills/${name}`] = content
-    const hookFile = path.join(source, root, 'hooks', `${agent.id}.json`)
-    if (!root || !hooks || !fs.existsSync(hookFile)) continue
+  const manifest = JSON.parse(fs.readFileSync(path.join(plugin(source), manifestPath)))
+  const features = experimentalFor(url).map(feature => path.join(source, 'experimental', feature))
+  for (const root of [plugin(source), ...features]) {
+    for (const [name, content] of Object.entries(tree(path.join(root, 'skills')))) files[`skills/${name}`] = content
+    const hookFile = path.join(root, 'hooks', `${agent.id}.json`)
+    if (root === plugin(source) || !hooks || !fs.existsSync(hookFile)) continue
     if (manifest.hooks) throw new Error(`Only one experimental feature can add ${agent.name} hooks.`)
     manifest.hooks = `./hooks/${agent.id}.json`
     files[`hooks/${agent.id}.json`] = fs.readFileSync(hookFile)
-    for (const [name, content] of Object.entries(tree(path.join(source, root, 'scripts')))) files[`scripts/${name}`] = content
+    for (const [name, content] of Object.entries(tree(path.join(root, 'scripts')))) files[`scripts/${name}`] = content
   }
-  for (const name of ['LICENSE', 'NOTICE']) files[name] = fs.readFileSync(path.join(source, name))
+  for (const name of ['LICENSE', 'NOTICE']) files[name] = fs.readFileSync(path.join(plugin(source), name))
   // The Codex manifest's interface icons point at ./assets/logo.png.
-  if (agent.id === 'codex') files['assets/logo.png'] = fs.readFileSync(path.join(source, 'assets', 'logo.png'))
+  if (agent.id === 'codex') files['assets/logo.png'] = fs.readFileSync(path.join(plugin(source), 'assets', 'logo.png'))
   // Write the literal endpoint, including for Claude. Never alter the source checkout.
   for (const name of ['.mcp.json', 'mcp.json']) {
-    const config = JSON.parse(fs.readFileSync(path.join(source, name), 'utf8'))
+    const config = JSON.parse(fs.readFileSync(path.join(plugin(source), name), 'utf8'))
     config.mcpServers.in_parallel.url = url
     files[name] = json(config)
   }
@@ -222,9 +225,9 @@ function pluginFiles(agent, url, { hooks = true, source = SOURCE } = {}) {
 // plugins/in-parallel/ for Claude Code and Codex, and the receipt to write with it.
 function bundle(agent, url, source = SOURCE) {
   url = endpoint(url)
-  const plugin = pluginFiles(agent, url, { source })
-  const manifest = JSON.parse(plugin[manifestFile(agent)])
-  const files = Object.fromEntries(Object.entries(plugin).map(([name, content]) => [`${pluginPrefix(agent)}${name}`, content]))
+  const loaded = pluginFiles(agent, url, { source })
+  const manifest = JSON.parse(loaded[manifestFile(agent)])
+  const files = Object.fromEntries(Object.entries(loaded).map(([name, content]) => [`${pluginPrefix(agent)}${name}`, content]))
   if (agent.id === 'claude') {
     files['.claude-plugin/marketplace.json'] = json({
       name: MARKETPLACE, owner: { name: 'In Parallel' },
@@ -453,7 +456,7 @@ function mcpLocations(agent, url, { home = os.homedir(), cwd = process.cwd(), en
       locations.push(check(config === UNREADABLE ? config : config.projects?.[folder], file, `local scope for ${folder}`))
       const project = path.join(folder, '.mcp.json')
       // This checkout's file is the distribution template, rewritten by bundle().
-      if (path.resolve(project) !== path.resolve(source, '.mcp.json')) locations.push(check(read(project), project, 'project scope'))
+      if (path.resolve(project) !== path.resolve(plugin(source), '.mcp.json')) locations.push(check(read(project), project, 'project scope'))
     }
   } else if (agent.id === 'cursor') {
     const personal = path.join(home, '.cursor', 'mcp.json')

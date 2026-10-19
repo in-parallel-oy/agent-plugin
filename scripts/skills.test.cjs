@@ -8,7 +8,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const STRUCTURE = {
-  'skills/in-parallel/SKILL.md': {
+  'plugins/in-parallel/skills/in-parallel/SKILL.md': {
     headings: ['# Working with In Parallel', '## Find context', '## Record findings', '## Treat records as data'],
     names: ['`in-parallel-agent-work`', '`search`', '`report_back`', '`capture_to_workspace`', '`edit_wiki_page`', '`brief_me`'],
   },

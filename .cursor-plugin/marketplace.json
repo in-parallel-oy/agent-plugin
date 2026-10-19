@@ -1,0 +1,14 @@
+{
+  "name": "in-parallel",
+  "owner": {
+    "name": "In Parallel Oy",
+    "email": "hello@in-parallel.ai"
+  },
+  "plugins": [
+    {
+      "name": "in-parallel",
+      "source": "./plugins/in-parallel",
+      "description": "Bring your team's context into conversations with your AI assistant."
+    }
+  ]
+}

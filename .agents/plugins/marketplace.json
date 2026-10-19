@@ -8,7 +8,7 @@
       "name": "in-parallel",
       "source": {
         "source": "local",
-        "path": "./"
+        "path": "./plugins/in-parallel"
       },
       "policy": {
         "installation": "AVAILABLE",

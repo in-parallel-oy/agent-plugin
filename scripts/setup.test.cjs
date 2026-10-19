@@ -104,7 +104,7 @@ for (const agent of setup.AGENTS) {
     const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
     assert.equal(fs.existsSync(path.join(plugin, 'plugin.json')), false)
     for (const file of ['.mcp.json', 'mcp.json']) {
-      const expected = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, file), 'utf8'))
+      const expected = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'plugins', 'in-parallel', file), 'utf8'))
       assert.deepEqual(Object.keys(expected.mcpServers), ['in_parallel'])
       expected.mcpServers.in_parallel.url = 'https://in-parallel.example/mcp'
       assert.deepEqual(JSON.parse(fs.readFileSync(path.join(plugin, file), 'utf8')), expected)
@@ -149,13 +149,13 @@ test('source and environment changes produce new cache versions without changing
   const source = path.join(home, 'source')
   fs.cpSync(setup.SOURCE, source, { recursive: true, filter: file => !['node_modules', '.git'].includes(path.basename(file)) })
   const agent = setup.AGENTS[1]
-  const original = fs.readFileSync(path.join(source, 'mcp.json'), 'utf8')
+  const original = fs.readFileSync(path.join(source, 'plugins', 'in-parallel', 'mcp.json'), 'utf8')
   const prod = setup.bundle(agent, PRODUCTION, source)
   const local = setup.bundle(agent, 'https://in-parallel.example/mcp', source)
   assert.notEqual(prod.receipt.version, local.receipt.version)
-  fs.appendFileSync(path.join(source, 'skills/in-parallel/SKILL.md'), '\nUpdated skill\n')
+  fs.appendFileSync(path.join(source, 'plugins', 'in-parallel', 'skills/in-parallel/SKILL.md'), '\nUpdated skill\n')
   assert.notEqual(setup.bundle(agent, 'https://in-parallel.example/mcp', source).receipt.version, local.receipt.version)
-  assert.equal(fs.readFileSync(path.join(source, 'mcp.json'), 'utf8'), original)
+  assert.equal(fs.readFileSync(path.join(source, 'plugins', 'in-parallel', 'mcp.json'), 'utf8'), original)
 })
 
 test('foreign plugins and marketplace collisions stop before creating files', t => {
@@ -903,9 +903,9 @@ for (const agent of [setup.AGENTS[0], setup.AGENTS[2]]) {
 
 test('the source checkout MCP template does not prevent preparing a chosen endpoint', t => {
   const { home, agent, options } = claude(t)
-  const file = path.join(setup.SOURCE, '.mcp.json')
+  const file = path.join(setup.SOURCE, 'plugins', 'in-parallel', '.mcp.json')
   const original = fs.readFileSync(file, 'utf8')
-  setup.install(agent, 'http://localhost:54104/mcp', { ...options, cwd: setup.SOURCE })
+  setup.install(agent, 'http://localhost:54104/mcp', { ...options, cwd: path.dirname(file) })
   assert.equal(setup.managed(setup.target(agent, home), agent).endpoint, 'http://localhost:54104/mcp')
   assert.equal(fs.readFileSync(file, 'utf8'), original)
 })
