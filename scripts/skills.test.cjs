@@ -19,7 +19,7 @@ const RULES = {
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
     '5. **Pause.**', '6. **Wait.**', '7. **Release.**', '## Without a link', '## Do not',
     'Read it again before any later start',
-    'The link says `observation` for every kind of item. Each item read takes it as the id: `get_action_item` for a To do',
+    'The link says `observation` for every kind of item. Read it with `get_action_item`',
     'That is the person in this conversation unless they say otherwise',
     'When the person says not to report, do not report; when you stop, tell them why',
     'Never move it to Done or Cancelled unless they ask',
@@ -32,7 +32,7 @@ const RULES = {
     'When the person asks you to put the item down or hand it on, report `released` too',
     '`released` is for putting the work down, not for ending your turn',
     'When the person asks you to start the item, such as "Start this and tell me your plan, but wait for my go-ahead", report `started`, give the plan and report the waiting note **Wait** describes',
-    '`get_observations` (the link in `observation_ids`) when you do not know the kind',
+    'Read it with `get_action_item`, since most are To dos; for another kind its reply names the read that fits',
     'A waiting note goes with a start of yours: when you did not start, send none',
     'they mean end this turn, so your start stays open',
     'Not when the person only ends your turn, such as "then stop": your start stays open',
@@ -86,8 +86,9 @@ const ORDER = {
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     // "Stop and wait for my go-ahead" both stops and waits: the waiting note must win.
     ['- **Waiting on the person', '- **Told to stop for now'],
-    // "Report started and wait for my go-ahead" still sends the waiting note; a done report-only request sends nothing more.
-    ['- **Waiting on the person', '- **Asked only to report'],
+    // A done report-only request, the most common stop after a start, comes first; it needs nothing awaited, so
+    // "report started and wait for my go-ahead" still falls to the waiting note.
+    ['- **Asked only to report', '- **Waiting on the person'],
     ['- **Asked only to report', '- **Work done'],
     // "Report started, then stop" gets its one-line account of what was reported, not the stop-for-now case.
     ['- **Asked only to report', '- **Told to stop for now'],

@@ -18,10 +18,9 @@ that link with `report_back`, so the person you act for sees your work on the
 item. When you work on the item, report without asking first, unless the person
 asks you to check with them before reporting.
 
-The link says `observation` for every kind of item. Each item read takes it as
-the id: `get_action_item` for a To do, `get_risk`, `get_open_question` or
-`get_decision` for the others, and `get_observations` (the link in
-`observation_ids`) when you do not know the kind.
+The link says `observation` for every kind of item. Read it with
+`get_action_item`, since most are To dos; for another kind its reply names the
+read that fits (`get_risk`, `get_open_question` or `get_decision`).
 
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
@@ -137,12 +136,12 @@ When a stop reminder names an item you worked on, answer it once, by the
 first case that fits:
 
 - **Told not to report:** tell the person why you stop without reporting.
-- **Waiting on the person**, such as for a go-ahead, an approval or an
-  answer, also when they told you to stop and wait: report a `note` with
-  `waiting: true`, unless you already sent one.
 - **Asked only to report, and reported**, such as their own work or "report
   started", with the item still open and yours and nothing awaited from the
   person: send no other report, say in one line what you reported, and stop.
+- **Waiting on the person**, such as for a go-ahead, an approval or an
+  answer, also when they told you to stop and wait: report a `note` with
+  `waiting: true`, unless you already sent one.
 - **Told to stop for now or to do nothing more, with nothing awaited from the
   person**, such as "then stop" or "don't do anything else": send no report,
   not even a note, and do not release; tell the person what remains, and
