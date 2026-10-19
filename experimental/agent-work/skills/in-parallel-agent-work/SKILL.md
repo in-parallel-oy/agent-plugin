@@ -18,6 +18,11 @@ that link with `report_back`, so the person you act for sees your work on the
 item. When you work on the item, report without asking first, unless the person
 asks you to check with them before reporting.
 
+The link says `observation` for every kind of item. Each item read takes it as
+the id: `get_action_item` for a To do, `get_risk`, `get_open_question` or
+`get_decision` for the others, and `get_observations` when you do not know
+the kind.
+
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
 and do not report. A file written, a draft done or a fix made is work, whether

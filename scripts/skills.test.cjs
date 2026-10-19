@@ -17,6 +17,7 @@ const RULES = {
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
     '5. **Pause.**', '6. **Wait.**', '7. **Release.**', '## Without a link', '## Do not',
     'Read it again before any later start',
+    'The link says `observation` for every kind of item. Each item read takes it as the id: `get_action_item` for a To do',
     'That is the person in this conversation unless they say otherwise',
     'When the person says not to report, do not report; when you stop, tell them why',
     'Never move it to Done or Cancelled unless they ask',
