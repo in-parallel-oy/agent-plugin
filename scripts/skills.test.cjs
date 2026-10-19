@@ -29,6 +29,8 @@ const RULES = {
     'give the plan and do not start. If you had already started, report `released`',
     'When the person asks you to put the item down or hand it on, report `released` too',
     '`released` is for putting the work down, not for ending your turn',
+    'An explicit "start" is a request to start: for "Start this and tell me your plan, but wait for my go-ahead", report `started`, give the plan and report the waiting note **Wait** describes',
+    'A waiting note goes with a start of yours: when you did not start, send none',
     'they mean end this turn, so your start stays open',
     'Not when the person only ends your turn, such as "then stop": your start stays open',
     'Work not done is never a `finished`, with `close: false` or without',

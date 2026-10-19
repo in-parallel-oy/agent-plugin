@@ -32,7 +32,10 @@ work on unless the person asks you to report it.
 One rule for start, plan and stop: start only when you are going to do the
 work. When the person asks only for a plan, such as "tell me your plan",
 give the plan and do not start. If you had already started, report
-`released` once you have told them. When the person asks you to put the item
+`released` once you have told them. An explicit "start" is a request to
+start: for "Start this and tell me your plan, but wait for my go-ahead",
+report `started`, give the plan and report the waiting note **Wait**
+describes. When the person asks you to put the item
 down or hand it on, report `released` too. `released` is for putting the work
 down, not for ending your turn: when the person says "then stop", "stop
 there" or "don't do anything else" after a step, they mean end this turn, so
@@ -105,6 +108,8 @@ why you are stopping without reporting.
 6. **Wait.** When you stop to wait for the person, such as for an approval
    or an answer, report `event: "note"` with `waiting: true` and a `note`
    saying what you wait for. That answers the stop reminder for the item.
+   A waiting note goes with a start of yours: when you did not start, send
+   none, and tell the person what you wait for.
    Waiting does not override a handover: when you come back to the item,
    read it again and Release on a handover.
 7. **Release.** To end your start without claiming any work, report

@@ -53,6 +53,8 @@ test('a prompt with an In Parallel link gets a reminder to report started if it 
   assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /Do not report\./)
   assert.match(output.hookSpecificOutput.additionalContext, /answering questions about it is not work/)
   assert.match(output.hookSpecificOutput.additionalContext, /Asked only for a plan\? Give it and do not start\./)
+  // An explicit start with a plan and a go-ahead to wait for is a start, not a plan-only request.
+  assert.match(output.hookSpecificOutput.additionalContext, /Asked to start, then wait for a go-ahead\? Report "started", then a "note" with waiting: true\./)
   assert.match(output.hookSpecificOutput.additionalContext, /Work not done is a "note" saying what remains, not "finished"\./)
   assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /pull request/)
   assert.match(output.hookSpecificOutput.additionalContext, /"started"/)
