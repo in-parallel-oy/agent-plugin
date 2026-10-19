@@ -64,7 +64,7 @@ const RULES = {
     'To close an item on your own reported work, also once you finished an earlier share with `close: false` and the rest is now done, report `finished` with `report_back`, not `close_action_items` or `update_action_item`',
     'report the work with `report_back`, closing included',
     'When a stop reminder names an item you worked on, answer it once, by the first case that fits',
-    '**Asked only to report, and reported**, such as their own work or "report started", with the item still open and nothing awaited from the person: send no other report, say in one line what you reported, and stop',
+    '**Asked only to report, and reported**, such as their own work or "report started", with the item still open and yours and nothing awaited from the person: send no other report, say in one line what you reported, and stop',
     'When the person asks you only to report, such as their own work or "report started", report what they asked, and nothing more',
     'call again with `ask: true`, your `event`, the same `note` and any `results`, and follow its reply: that call is the report the To do they pick records',
     'To add a link to an item you already finished, report a `note` with the link in `results`; it changes no status',
@@ -87,6 +87,8 @@ const ORDER = {
     // "Report started and wait for my go-ahead" still sends the waiting note; a done report-only request sends nothing more.
     ['- **Waiting on the person', '- **Asked only to report'],
     ['- **Asked only to report', '- **Work done'],
+    // "Report started, then stop" gets its one-line account of what was reported, not the stop-for-now case.
+    ['- **Asked only to report', '- **Told to stop for now'],
   ],
 }
 

@@ -140,8 +140,8 @@ first case that fits:
   answer, also when they told you to stop and wait: report a `note` with
   `waiting: true`, unless you already sent one.
 - **Asked only to report, and reported**, such as their own work or "report
-  started", with the item still open and nothing awaited from the person:
-  send no other report, say in one line what you reported, and stop.
+  started", with the item still open and yours and nothing awaited from the
+  person: send no other report, say in one line what you reported, and stop.
 - **Told to stop for now or to do nothing more, with nothing awaited from the
   person**, such as "then stop" or "don't do anything else": send no report,
   not even a note, and do not release; tell the person what remains, and
