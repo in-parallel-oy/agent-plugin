@@ -12,18 +12,10 @@
   },
   "files": [
     "scripts/*.js",
-    "skills",
-    "assets",
+    "plugin",
     "experimental",
-    ".claude-plugin",
-    ".codex-plugin",
-    ".cursor-plugin",
-    "plugin.json",
-    "mcp.json",
-    ".mcp.json",
     "README.md",
     "LICENSE",
-    ".agents/plugins/marketplace.json",
     "NOTICE"
   ],
   "engines": {
@@ -31,7 +23,8 @@
   },
   "scripts": {
     "test": "node --test scripts/*.test.cjs",
-    "package": "node scripts/package.js"
+    "package": "node scripts/package.js",
+    "version": "node scripts/version.js && git add server.json .claude-plugin plugins/in-parallel"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",

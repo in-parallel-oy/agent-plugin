@@ -8,6 +8,7 @@ const { spawnSync } = require('node:child_process')
 const { unzipSync } = require('fflate')
 const { packageFiles } = require('./package')
 const source = path.resolve(__dirname, '..')
+const plugin = path.join(source, 'plugins', 'in-parallel')
 
 for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
   test(`${client}: export includes executable hooks and literal MCP endpoints without local state`, () => {
@@ -16,8 +17,8 @@ for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
     const manifest = JSON.parse(files[`.${kind}-plugin/plugin.json`])
     assert.ok(files[manifest.hooks.slice(2)])
     assert.ok(files['skills/in-parallel-work/SKILL.md'])
-    assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
-    assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
+    assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(plugin, 'LICENSE')))
+    assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(plugin, 'NOTICE')))
     for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, 'https://demo.example/mcp')
     assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|scripts\/|hooks\/|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
     assert.equal(files['plugin.json'], undefined)
@@ -47,9 +48,9 @@ test('ChatGPT web packages skills, listing fields and icon, with no app referenc
     assert.equal(manifest.mcpServers, undefined)
     assert.ok(files['skills/in-parallel/SKILL.md'])
     assert.equal(files['skills/in-parallel-work/SKILL.md'], undefined)
-    assert.deepEqual(files['assets/logo.png'], fs.readFileSync(path.join(source, 'assets/logo.png')))
-    assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(source, 'LICENSE')))
-    assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(source, 'NOTICE')))
+    assert.deepEqual(files['assets/logo.png'], fs.readFileSync(path.join(plugin, 'assets/logo.png')))
+    assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(plugin, 'LICENSE')))
+    assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(plugin, 'NOTICE')))
     assert.ok(!Object.keys(files).some(name => /mcp|app\.json|^hooks\/|^scripts\//.test(name)))
     assert.ok(manifest.interface.shortDescription.length <= 30)
     assert.equal(manifest.version, JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version)
@@ -118,14 +119,25 @@ test('creates an uploadable ZIP without client CLIs and refuses to overwrite an 
 })
 
 test('portable and native OpenAI manifests agree on hooks and presentation', () => {
-  const portable = JSON.parse(fs.readFileSync(path.join(source, 'plugin.json')))
-  const native = JSON.parse(fs.readFileSync(path.join(source, '.codex-plugin/plugin.json')))
+  const portable = JSON.parse(fs.readFileSync(path.join(plugin, 'plugin.json')))
+  const native = JSON.parse(fs.readFileSync(path.join(plugin, '.codex-plugin/plugin.json')))
   assert.equal(native.hooks, undefined)
   assert.deepEqual(portable.extensions['com.openai'], { interface: native.interface })
   const marketplace = JSON.parse(fs.readFileSync(path.join(source, '.agents/plugins/marketplace.json')))
-  assert.equal(marketplace.plugins[0].source.path, './')
-  for (const name of ['package.json', '.claude-plugin/plugin.json', '.cursor-plugin/plugin.json']) {
+  assert.equal(marketplace.plugins[0].source.path, './plugins/in-parallel')
+  for (const name of ['package.json', 'plugins/in-parallel/.claude-plugin/plugin.json', 'plugins/in-parallel/.cursor-plugin/plugin.json']) {
     assert.equal(JSON.parse(fs.readFileSync(path.join(source, name))).version, native.version)
   }
   assert.equal(portable.version, native.version)
+})
+
+test('every manifest repeats the package.json version', () => {
+  const { VERSIONED, read } = require('./version')
+  const { version } = read('package.json')
+  for (const [file, keys] of VERSIONED) assert.equal(keys.reduce((node, key) => node[key], read(file)), version, file)
+  assert.equal(read('package-lock.json').version, version)
+})
+
+test('the installed plugin carries the repository LICENSE and NOTICE', () => {
+  for (const name of ['LICENSE', 'NOTICE']) assert.deepEqual(fs.readFileSync(path.join(plugin, name)), fs.readFileSync(path.join(source, name)))
 })
