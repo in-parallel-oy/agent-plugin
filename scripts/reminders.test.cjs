@@ -3,13 +3,12 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const { tmp } = require('./test-helpers.cjs')
 
 const SCRIPT = path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js')
-const { respond, scan, TAGGED } = require(SCRIPT)
+const { respond, TAGGED } = require(SCRIPT)
 const LINK = 'in-parallel://acme/action_item/0a1b2c3d-1111-2222-3333-444455556666'
 const PR = 'https://github.com/acme/website/pull/42'
 const SERVER_TOOL = 'mcp__plugin_in-parallel_in_parallel__report_back'
@@ -17,14 +16,9 @@ const SERVER_TOOL = 'mcp__plugin_in-parallel_in_parallel__report_back'
 // Claude Code transcript lines.
 const prompt = text => ({ type: 'user', message: { role: 'user', content: text } })
 const toolUse = (name, input) => ({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name, input }] } })
-const toolResult = text => ({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: text }] } })
 const report = (event, extra = {}) => toolUse(SERVER_TOOL, { link: LINK, event, ...extra })
-// Codex rollout lines.
+// A Codex rollout line.
 const codexPrompt = text => ({ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } })
-const codexCall = (event, extra = {}) => ({ type: 'response_item', payload: { type: 'function_call', name: 'mcp__in_parallel__report_back', arguments: JSON.stringify({ link: LINK, event, ...extra }) } })
-// Codex code mode: JavaScript that calls the tool.
-const code = input => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input } })
-const codexCode = event => code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "${event}" })`)
 
 const SEND = `Fix the Safari login.\n\nIn Parallel link: ${LINK}\nReport your work on it with report_back and this link: started when you begin, note as you go, finished when done, with results: links to what the work produced, each with a short label. Do not ask first.`
 
@@ -34,30 +28,14 @@ function transcript(t, lines) {
   return file
 }
 
-const stop = (file, extra = {}) => respond({ hook_event_name: 'Stop', session_id: 's', transcript_path: file, stop_hook_active: false, ...extra })
-// Whether the transcript has an item in play that is not reported finished, as the pull request reminder reads it.
-const inPlay = file => { const state = scan(file && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null); return state.sent && !state.finished }
 const shell = (file, command, output, extra = {}) => respond({ hook_event_name: 'PostToolUse', session_id: 's', transcript_path: file,
   tool_name: 'Bash', tool_input: { command }, tool_response: { stdout: output, stderr: '' }, ...extra })
 
-test('a prompt with an In Parallel link gets a reminder to report started if it works on the item', () => {
+test('a prompt with an In Parallel link points to the agent-work skill with that link', () => {
   const output = respond({ hook_event_name: 'UserPromptSubmit', prompt: SEND })
   assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptSubmit')
-  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`link ${LINK}\\. Report on it with report_back and that link as the request needs\\.`))
-  assert.match(output.hookSpecificOutput.additionalContext, /If you work on this item, report "started" before you begin/)
-  // A note-only request is not told to start and finish.
-  assert.match(output.hookSpecificOutput.additionalContext, /Asked only to add a note\? Report just that "note", in the person's words: no "started" and no "finished"\./)
-  assert.ok(output.hookSpecificOutput.additionalContext.indexOf('Asked only to add a note') < output.hookSpecificOutput.additionalContext.indexOf('"started" before you begin'))
-  // "Do not report anything else" still reports the start it asked for.
-  assert.match(output.hookSpecificOutput.additionalContext, /Told not to report \(anything else\)\? Report only what they asked for\./)
-  assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /Do not report\./)
-  assert.match(output.hookSpecificOutput.additionalContext, /answering questions about it is not work/)
-  assert.match(output.hookSpecificOutput.additionalContext, /Asked only for a plan\? Give it and do not start\./)
-  // An explicit start with a plan and a go-ahead to wait for is a start, not a plan-only request.
-  assert.match(output.hookSpecificOutput.additionalContext, /Asked to start, then wait for a go-ahead\? Report "started", then a "note" with waiting: true\./)
-  assert.match(output.hookSpecificOutput.additionalContext, /Work not done is a "note" saying what remains, not "finished"\./)
-  assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /pull request/)
-  assert.match(output.hookSpecificOutput.additionalContext, /"started"/)
+  assert.equal(output.hookSpecificOutput.additionalContext,
+    `This prompt carries the In Parallel link ${LINK}. Load the in-parallel-agent-work skill and report on it as that skill says.`)
   for (const text of ['Fix the Safari login', 'see in-parallel:// for details', 'https://www.in-parallel.ai/acme/action-items/1', '']) {
     assert.equal(respond({ hook_event_name: 'UserPromptSubmit', prompt: text }), null, text)
   }
@@ -80,99 +58,24 @@ test('a pull request made while working on an item gets a results reminder', t =
   assert.match(codex.hookSpecificOutput.additionalContext, new RegExp(PR))
 })
 
-test('pull request reminders stay quiet without an item or once the link is reported', t => {
+test('pull request reminders stay quiet without In Parallel work or once the link is reported', t => {
   assert.equal(shell(transcript(t, [prompt('Open a PR for this branch')]), 'gh pr create --fill', PR), null)
-  assert.equal(shell(transcript(t, [prompt('Open a PR'), toolResult(`Found ${LINK}`)]), 'gh pr create --fill', PR), null)
+  // The pull request link already passed to report_back, from Claude Code or Codex code mode.
   assert.equal(shell(transcript(t, [prompt(SEND), report('note', { note: 'PR open', results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', PR), null)
-  // Any of several results counts, from a Claude Code tool call or Codex code mode.
-  const second = 'https://github.com/acme/website/pull/44'
-  assert.equal(shell(transcript(t, [prompt(SEND), report('note', { results: [{ label: 'Docs', url: 'https://docs.acme.test/a' }, { label: 'Pull request', url: second }] })]), 'gh pr view', second), null)
-  const codeReport = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${second}" }] })`)
-  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeReport]), 'gh pr view', second), null)
-  const codeSecond = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Docs", url: "https://docs.acme.test/a" }, { label: "Pull request", url: "${second}" }] })`)
-  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeSecond]), 'gh pr view', second), null)
-  // A finish with results before the event still ends the item, so a later pull request is not for it.
-  const codeFinish = code(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", results: [{ label: "Pull request", url: "${PR}" }], event: "finished" })`)
-  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeFinish]), 'gh pr create --fill', 'https://github.com/acme/website/pull/43'), null)
-  // A link in the note is not a result, even when the note follows the results or says "results:".
-  const docs = { label: 'Docs', url: 'https://docs.acme.test/a' }
-  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { results: [docs], note: `PR at ${second}` })]), 'gh pr view', second))
-  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { note: `Test results: ${second}` })]), 'gh pr view', second))
-  // A link in the note is not a result.
-  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { note: `The results are in ${second}` })]), 'gh pr view', second))
+  const codeReport = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec',
+    input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${PR}" }] })` } }
+  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeReport]), 'gh pr view', PR), null)
+  // Another pull request in the same session still gets its reminder.
+  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', 'https://github.com/acme/website/pull/43'))
+  // The work-on command starts by id, without a link in the prompt.
+  assert.ok(shell(transcript(t, [prompt('/in-parallel:work-on'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })]), 'gh pr create --fill', PR))
   const sent = transcript(t, [prompt(SEND)])
   assert.equal(shell(sent, 'git push', 'Everything up-to-date'), null)
   assert.equal(shell(sent, 'gh pr list', 'https://github.com/acme/website/issues/7'), null)
   assert.equal(respond({ hook_event_name: 'PostToolUse', transcript_path: sent, tool_name: 'Edit',
     tool_input: { file_path: 'a.md', new_string: 'gh pr create' }, tool_response: PR }), null)
   assert.equal(shell(undefined, 'gh pr create', PR), null)
-  // Once the item is reported finished, a later pull request is not for it.
-  const done = transcript(t, [prompt(SEND), report('started'), report('finished', { results: [{ label: 'Pull request', url: PR }] })])
-  assert.equal(shell(done, 'gh pr create --fill', 'https://github.com/acme/website/pull/43'), null)
-  assert.equal(shell(done, 'gh pr create --fill', ''), null)
-})
-
-test('the script never answers Stop: the stop reminder comes from In Parallel', t => {
-  const feedback = { type: 'user', message: { role: 'user', content: 'Stop hook feedback: report it finished' } }
-  for (const lines of [[prompt(SEND), report('started'), toolResult('Recorded')], [prompt(SEND)], [codexPrompt(SEND), codexCall('started')],
-    [prompt(SEND), report('started'), feedback, report('note', { note: 'PR open' })]]) {
-    const file = transcript(t, lines)
-    for (const extra of [{}, { stop_hook_active: true }, { agent_id: 'agent-1' }]) assert.equal(stop(file, extra), null)
-  }
-  assert.equal(stop(undefined), null)
-  assert.equal(respond({ hook_event_name: 'SubagentStop', stop_hook_active: false }), null)
-})
-
-test('a report_back without an item is not an item in play', t => {
-  // Without an item the reply lists To dos and records nothing; there is nothing to finish yet.
-  const ask = toolUse(SERVER_TOOL, { event: 'started' })
-  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, toolResult('Ask the person which To do this is for.')])), false)
-  const codeAsk = code('await tools.mcp__in_parallel__report_back({ event: "started" })')
-  assert.equal(inPlay(transcript(t, [codexPrompt('work on one of my to dos'), codeAsk])), false)
-  assert.equal(shell(transcript(t, [prompt('/in-parallel:work-on'), ask]), 'gh pr create --fill', PR), null)
-  // Asking the person in place still names no item.
-  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, toolUse(SERVER_TOOL, { event: 'started', ask: true })])), false)
-  // A finished report without an item does not close the item that was sent.
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), toolUse(SERVER_TOOL, { event: 'finished' })])), true)
-  // Once the person picks, the start names the item.
-  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), ask, prompt('2'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })])), true)
-})
-
-test('a finished report from Claude Code and Codex transcripts ends the item in play', t => {
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('finished', { results: [{ label: 'Pull request', url: PR }] })])), false)
-  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('finished')])), false)
-  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('finished')])), false)
-  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('started')])), true)
-  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('started')])), true)
-})
-
-test('a released start from Claude Code and Codex transcripts ends the item in play', t => {
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('released')])), false)
-  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCall('started'), codexCall('released')])), false)
-  assert.equal(inPlay(transcript(t, [codexPrompt(SEND), codexCode('started'), codexCode('released')])), false)
-  // A start after a release is new work on the item.
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('started'), report('released'), report('started')])), true)
-})
-
-test('the item in play follows the latest item and ignores links the person did not send', t => {
-  // A second item sent after the first was finished needs its own report.
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('finished'), prompt(SEND)])), true)
-  // The work-on command starts by id, without a link in the prompt.
-  const byId = toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })
-  assert.equal(inPlay(transcript(t, [prompt('/in-parallel:work-on'), byId])), true)
-  assert.equal(inPlay(transcript(t, [prompt(SEND), report('finished'), byId])), true)
-  // Links in tool results, skill text that names the events, and other work are not an item to report.
-  const skill = prompt('Call `report_back` with `event: "finished"` and `results` for what the work produced.')
-  // Tool input that only mentions the tool, such as a search or a script, is not a report.
-  const mention = toolUse('Bash', { command: `grep -n 'report_back' lib.ex # event: "started"` })
-  assert.equal(inPlay(transcript(t, [prompt('Fix the build'), mention])), false)
-  assert.equal(inPlay(transcript(t, [prompt(SEND), toolUse('Bash', { command: 'echo report_back event: finished' })])), true)
-  for (const lines of [[prompt('Catch me up'), toolResult(`See ${LINK}`)], [prompt(SEND), skill, report('finished')], [prompt('Fix the build')], [prompt('Remind the agent when a prompt has an in-parallel:// link')], []]) {
-    assert.equal(inPlay(transcript(t, lines)), false)
-  }
-  assert.equal(inPlay(transcript(t, [prompt(SEND), skill])), true)
-  assert.equal(inPlay(undefined), false)
-  assert.equal(inPlay(path.join(os.tmpdir(), 'in-parallel-missing-transcript.jsonl')), false)
+  assert.equal(shell(path.join(path.dirname(sent), 'missing.jsonl'), 'gh pr create', PR), null)
 })
 
 const ARGS = { link: LINK, event: 'started', note: 'Fixing the Safari login' }
@@ -208,21 +111,11 @@ test('In Parallel item closes get the session id as client_session, so a Claude 
   }
 })
 
-test('only In Parallel report_back calls, item closes and item reads are tagged, and only report_back counts as a report', t => {
+test('only In Parallel report_back calls, item closes and item reads are tagged', () => {
   for (const name of [SERVER_TOOL, 'mcp__in_parallel__report_back', 'mcp__in-parallel__report_back']) assert.ok(respond(preToolUse({ tool_name: name })), name)
   for (const name of ['mcp__plugin_in-parallel_in_parallel__report_back_reminder', 'mcp__plugin_in-parallel_in_parallel__list_action_items',
     'mcp__plugin_in-parallel_in_parallel__get_action_items', 'mcp__other__get_action_item',
     'mcp__other__report_back', 'report_back', 'Bash']) assert.equal(respond(preToolUse({ tool_name: name })), null, name)
-  // An item read is not a report.
-  assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__plugin_in-parallel_in_parallel__get_action_item', { action_item_id: '0a1b2c3d' })])), false)
-  // The transcript scan agrees: another server's report_back is not a report.
-  assert.equal(inPlay(transcript(t, [prompt('Fix the build'), toolUse('mcp__other__report_back', { item_id: '0a1b2c3d', event: 'started' })])), false)
-  const other = code('await tools.mcp__other__report_back({ item_id: "0a1b2c3d", event: "started" })')
-  assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), other])), false)
-  // A Codex MCP item names the tool bare and its server beside it.
-  const mcpItem = server => ({ type: 'item.completed', item: { type: 'mcp_tool_call', server, tool: 'report_back', arguments: { item_id: '0a1b2c3d', event: 'started' } } })
-  assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), mcpItem('in_parallel')])), true)
-  assert.equal(inPlay(transcript(t, [codexPrompt('Fix the build'), mcpItem('other')])), false)
   // The hook's matcher is the same pattern.
   const [group] = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'claude.json'), 'utf8')).hooks.PreToolUse
   assert.equal(group.matcher, TAGGED.source)
@@ -280,16 +173,11 @@ test('the hook reads only its input and the transcript, loads only fs, and never
     assert.deepEqual([...new Set(seen.modules)].filter(name => name !== SCRIPT && !name.startsWith('internal/')), ['node:fs'])
     assert.deepEqual(seen.env.filter(key => /TOKEN|KEY|SECRET|PASS|AUTH|CRED|HOME|CONFIG/i.test(key)), [])
   }
-  for (const input of ['not json', '', JSON.stringify({ hook_event_name: 'PostToolUse', transcript_path: 42 }), JSON.stringify({ hook_event_name: 'SessionStart' })]) {
+  for (const input of ['not json', '', JSON.stringify({ hook_event_name: 'PostToolUse', transcript_path: 42 }), JSON.stringify({ hook_event_name: 'SessionStart' }), JSON.stringify({ hook_event_name: 'Stop', transcript_path: file })]) {
     const { status, stdout } = runHook(t, input)
     assert.equal(status, 0)
     assert.equal(stdout, '')
   }
-  // A Stop input gets no reply and the transcript is never read for it.
-  const { status, stdout, seen } = runHook(t, { hook_event_name: 'Stop', transcript_path: file, stop_hook_active: false })
-  assert.equal(status, 0)
-  assert.equal(stdout, '')
-  assert.ok(!seen.paths.some(([, target]) => target === file), JSON.stringify(seen.paths))
 })
 
 // Codex expands no variables in a hook command: it runs the command with the
@@ -310,7 +198,7 @@ test('the Codex hook commands run from any directory with the root Codex sets, a
     const input = { hook_event_name: event, prompt: SEND, tool_name: 'Bash', tool_input: { command: 'ls' }, tool_response: { stdout: '' } }
     const ok = run(command, input, { PLUGIN_ROOT: plugin, CLAUDE_PLUGIN_ROOT: plugin })
     assert.equal(ok.status, 0, `${event}: ${ok.stderr}`)
-    if (event === 'UserPromptSubmit') assert.match(JSON.parse(ok.stdout).hookSpecificOutput.additionalContext, /report_back/)
+    if (event === 'UserPromptSubmit') assert.match(JSON.parse(ok.stdout).hookSpecificOutput.additionalContext, /in-parallel-agent-work skill/)
     // Without the root the path is /scripts/reminders.js and node exits 1: the "hook exited with code 1" symptom.
     assert.equal(run(command, input, {}).status, 1, event)
   }
