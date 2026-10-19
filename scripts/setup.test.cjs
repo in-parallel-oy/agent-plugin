@@ -8,8 +8,7 @@ const { spawnSync } = require('node:child_process')
 const setup = require('./setup-lib')
 const { SKILLS, tmp } = require('./test-helpers.cjs')
 const { TAGGED } = require(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js'))
-// The shipped default endpoint, read rather than repeated so fixtures follow the config.
-const PRODUCTION = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
+const { PRODUCTION, DEVELOPMENT } = setup
 
 // Everything the retired work journal hooks left in ~/.in-parallel, plus a file setup must keep.
 function journalCache(home) {
@@ -202,7 +201,7 @@ test('unmanaged directories and symlinks are never replaced', t => {
 test('setup installs the plugin as a client loads it, beside the setup marketplace, with the receipt apart', () => {
   const sha = content => require('node:crypto').createHash('sha256').update(content).digest('hex')
   for (const agent of setup.AGENTS) {
-    const url = 'https://www.in-parallel.dev/mcp'
+    const url = DEVELOPMENT
     const plugin = setup.pluginFiles(agent, url)
     const { files, receipt } = setup.bundle(agent, url)
     const prefix = agent.id === 'cursor' ? '' : setup.PLUGIN_DIR
@@ -230,7 +229,7 @@ test('only the Development environment and localhost add experimental features, 
       assert.ok(!Object.keys(stable.files).some(name => /in-parallel-agent-work|work-on|(^|\/)(hooks|scripts)\//.test(name)), url)
       assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
     }
-    for (const url of ['https://www.in-parallel.dev/mcp', 'https://in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp']) {
+    for (const url of [DEVELOPMENT, 'https://in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp']) {
       const dev = setup.bundle(agent, url)
       assert.deepEqual(dev.receipt.experimental, ['agent-work'])
       for (const skill of SKILLS) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
@@ -274,7 +273,7 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
   const logs = []
   const options = { home, cwd: home, env: {}, log: message => logs.push(message) }
   const file = path.join(setup.target(agent, home), setup.RECEIPT)
-  for (const url of ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp']) {
+  for (const url of [DEVELOPMENT, 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp']) {
     setup.install(agent, url, options)
     const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
     for (const experimental of [['work-claims'], undefined]) {
@@ -301,7 +300,7 @@ for (const agent of setup.AGENTS) {
     const native = host(agent, home)
     const logs = []
     const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
-    const url = 'https://www.in-parallel.dev/mcp'
+    const url = DEVELOPMENT
     setup.install(agent, url, options)
     const root = setup.target(agent, home)
     const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
@@ -420,7 +419,7 @@ test('checkbox multiselect installs all selected agents and skips unselected age
   assert.equal(ui.texts[0].validate('http://localhost:54104/mcp'), undefined)
 })
 
-for (const url of [PRODUCTION, 'https://www.in-parallel.dev/mcp']) {
+for (const url of [PRODUCTION, DEVELOPMENT]) {
   test(`environment selection installs ${url} without asking for a URL`, async t => {
     const { main } = require('./setup')
     const home = fixture(t)
@@ -454,7 +453,7 @@ test('rerunning setup preserves the selected hosted environment', async t => {
   const { main } = require('./setup')
   const home = fixture(t)
   const agent = setup.AGENTS[2]
-  const url = 'https://www.in-parallel.dev/mcp'
+  const url = DEVELOPMENT
   setup.install(agent, url, { home, cwd: home, env: {}, log() {} })
   const ui = prompts(['cursor'], undefined, true, null)
   assert.equal(await main([], { home, cwd: home, env: {}, interactive: true, prompts: ui }), 0)
@@ -464,9 +463,9 @@ test('rerunning setup preserves the selected hosted environment', async t => {
 })
 
 for (const [before, after] of [
-  [PRODUCTION, 'https://www.in-parallel.dev/mcp'],
-  ['http://localhost:54104/mcp', 'https://www.in-parallel.dev/mcp'],
-  ['https://www.in-parallel.dev/mcp', 'http://localhost:54104/mcp'],
+  [PRODUCTION, DEVELOPMENT],
+  ['http://localhost:54104/mcp', DEVELOPMENT],
+  [DEVELOPMENT, 'http://localhost:54104/mcp'],
   ['http://localhost:54104/mcp', 'http://localhost:54105/mcp'],
 ]) {
   test(`updates ask again and can switch from ${before} to ${after}`, async t => {

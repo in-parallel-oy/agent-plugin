@@ -7,6 +7,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { e2eFiles, main, MARKETPLACE } = require('./e2e-bundle')
 const setup = require('./setup-lib')
+const { DEVELOPMENT } = setup
 const { SKILLS, tmp } = require('./test-helpers.cjs')
 
 const ENDPOINT = 'http://localhost:4000/mcp'
@@ -58,7 +59,7 @@ test('without --token-env no authentication is configured', () => {
 })
 
 test('non-loopback URLs, bad variable names, other agents and foreign directories are refused', t => {
-  for (const url of ['https://www.in-parallel.dev/mcp', 'https://www.in-parallel.ai/mcp', 'https://localhost.example.com/mcp', 'http://10.0.0.1/mcp', undefined]) {
+  for (const url of [DEVELOPMENT, 'https://www.in-parallel.ai/mcp', 'https://localhost.example.com/mcp', 'http://10.0.0.1/mcp', undefined]) {
     assert.throws(() => e2eFiles({ agent: 'claude', url }), /loopback|HTTPS MCP URL/, String(url))
   }
   assert.throws(() => e2eFiles({ agent: 'claude', url: ENDPOINT, tokenEnv: 'A=B' }), /variable name/)

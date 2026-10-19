@@ -47,7 +47,7 @@ async function main(args = process.argv.slice(2), {
     const defaultUrl = existing.length && new Set(existing).size === 1 ? existing[0] : production
     const environments = [
       { value: production, label: 'Production', hint: production },
-      { value: 'https://www.in-parallel.dev/mcp', label: 'Development', hint: 'https://www.in-parallel.dev/mcp' },
+      { value: setup.DEVELOPMENT, label: 'Development', hint: setup.DEVELOPMENT },
       { value: 'custom', label: 'Custom', hint: 'Localhost or another server' },
     ]
     const initialValue = environments.some(option => option.value === defaultUrl) ? defaultUrl : 'custom'

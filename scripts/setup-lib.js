@@ -19,8 +19,10 @@ const PRODUCTION = JSON.parse(fs.readFileSync(path.join(SOURCE, 'mcp.json'), 'ut
 const EXPERIMENTAL = ['agent-work']
 // The hosts a local server answers on. HTTP is allowed only for these.
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
-// A local server runs the newest code, so it gets them too.
-const DEVELOPMENT_HOSTS = ['www.in-parallel.dev', 'in-parallel.dev', ...LOOPBACK_HOSTS]
+const DEVELOPMENT = 'https://www.in-parallel.dev/mcp'
+// The Development environment on either host gets them; a local server runs the
+// newest code, so it gets them too.
+const DEVELOPMENT_HOSTS = [new URL(DEVELOPMENT).hostname, new URL(DEVELOPMENT).hostname.replace(/^www\./, ''), ...LOOPBACK_HOSTS]
 // Receipts without an experimental list predate it and installed the retired work journal.
 const RETIRED = ['work-claims']
 const MARKETPLACE = 'in-parallel-setup'
@@ -719,4 +721,4 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
   log(`${agent.name} installed: files match the setup receipt${agent.command ? `; ${agent.name} reports version ${receipt.version} enabled` : '; Cursor discovers the folder when it reloads'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; no conflicting entry in the locations above; runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\n${agent.name} working: not verified by setup. To verify, ${verify(installedFeatures)}${lastFailure}\n${instructions(agent, hooked(receipt))}`)
 }
 
-module.exports = { AGENTS, SOURCE, PRODUCTION, LOOPBACK_HOSTS, MARKETPLACE, PLUGIN, PLUGIN_DIR, RECEIPT, ReplacementRequired, json, writeFiles, endpoint, target, bundle, pluginFiles, managed, install, uninstall, doctor }
+module.exports = { AGENTS, SOURCE, PRODUCTION, DEVELOPMENT, LOOPBACK_HOSTS, MARKETPLACE, PLUGIN, PLUGIN_DIR, RECEIPT, ReplacementRequired, json, writeFiles, endpoint, target, bundle, pluginFiles, managed, install, uninstall, doctor }

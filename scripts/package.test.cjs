@@ -7,14 +7,15 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const { unzipSync } = require('fflate')
 const { packageFiles } = require('./package')
+const { DEVELOPMENT } = require('./setup-lib')
 const source = path.resolve(__dirname, '..')
 
 for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
   test(`${client}: export has literal MCP endpoints, and the agent work skills and reminders only for Development`, () => {
-    for (const url of ['https://demo.example/mcp', 'https://www.in-parallel.dev/mcp']) {
+    for (const url of ['https://demo.example/mcp', DEVELOPMENT]) {
       const files = packageFiles(client, { url })
       const kind = client === 'claude' ? 'claude' : 'codex'
-      const dev = url.includes('in-parallel.dev')
+      const dev = url === DEVELOPMENT
       // ChatGPT runs no plugin hooks, so its packages never carry them.
       const hooks = dev && client !== 'chatgpt-desktop'
       assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, hooks ? `./hooks/${kind}.json` : undefined)
