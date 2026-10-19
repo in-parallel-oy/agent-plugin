@@ -20,8 +20,8 @@ asks you to check with them before reporting.
 
 The link says `observation` for every kind of item. Each item read takes it as
 the id: `get_action_item` for a To do, `get_risk`, `get_open_question` or
-`get_decision` for the others, and `get_observations` (the link in `observation_ids`) when
-you do not know the kind.
+`get_decision` for the others, and `get_observations` (the link in
+`observation_ids`) when you do not know the kind.
 
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
@@ -29,29 +29,28 @@ and do not report. A file written, a draft done or a fix made is work, whether
 you did it or the person tells you they did. Never finish a To do you did not
 work on unless the person asks you to report it.
 
-One rule for start, plan and stop: start only when you are going to do the
-work. When the person asks only for a plan, such as "tell me your plan",
-give the plan and do not start. If you had already started, report
-`released` once you have told them. When the person asks you to start the
-item, such as "Start this and tell me your plan, but wait for my go-ahead",
-report `started`, give the plan and report the waiting note **Wait**
-describes. When the person asks you to put the item down or hand it on, report
-`released` too. `released` is for putting the work
-down, not for ending your turn: when the person says "then stop", "stop
+One rule for start, plan and stop: start only when you are going to do the work.
+When the person asks only for a plan, such as "tell me your plan", give the plan
+and do not start. If you had already started, report `released` once you have
+told them. When the person asks you to start the item, such as "Start this and
+tell me your plan, but wait for my go-ahead", report `started`, give the plan
+and report the waiting note **Wait** describes. When the person asks you to put
+the item down or hand it on, report `released` too. `released` is for putting
+the work down, not for ending your turn: when the person says "then stop", "stop
 there" or "don't do anything else" after a step, they mean end this turn, so
-your start stays open; tell them what remains, and send no other report.
-When they also say to wait for them, such as "stop and wait for my
-go-ahead", report the waiting note **Wait** describes before you stop.
+your start stays open; tell them what remains, and send no other report. When
+they also say to wait for them, such as "stop and wait for my go-ahead", report
+the waiting note **Wait** describes before you stop.
 
 Report state changes, not activity: started, finished, and finished with
-`close: false` when a part of the work is genuinely finished, such as your
-share while others still work on the item. A note is for a turning point the
-owner should know about; routine activity is not reported. A part of the work
-still to come, such as a quote or a reply the work waits for, is a note, never
-a `finished`. Work not done is never a `finished`, with `close: false` or
-without: when you did only what you were asked and the item's own work
-remains with nobody doing it, such as a command run while the rotation it is
-for was not performed, report a `note` saying what remains, with `waiting: true` when it
+`close: false` when a part of the work is genuinely finished, such as your share
+while others still work on the item. A note is for a turning point the owner
+should know about; routine activity is not reported. A part of the work still to
+come, such as a quote or a reply the work waits for, is a note, never a
+`finished`. Work not done is never a `finished`, with `close: false` or without:
+when you did only what you were asked and the item's own work remains with
+nobody doing it, such as a command run while the rotation it is for was not
+performed, report a `note` saying what remains, with `waiting: true` when it
 waits on the person, and leave your start open.
 
 Replies name the person you act for in `acting_for`. That is the person in
@@ -114,18 +113,17 @@ why you are stopping without reporting.
    read it again and Release on a handover.
 7. **Release.** To end your start without claiming any work, report
    `event: "released"`, with a `note` saying why, and stop reporting on the
-   item: after a handover, after a plan-only request, or when they ask you to put
-   the item down or hand it on. Not when the person only ends your turn, such
-   as "then stop": your start stays open. It puts back the
-   status your start changed, so a To do you moved to Doing goes back to To
-   do, but only while nobody has changed it since, the person you act for
-   still owns it and no one else has started it; otherwise the status stays
-   and the reply says why. Never move it to Done or Cancelled unless they
-   ask. A handover is when the item's `since_you_last_checked` shows a new
-   owner, or a stop reminder says it is now someone else's and the person you
-   act for no longer owns it: tell the person. A release answers the stop
-   reminder for the item. When the person asks you to pause, use Pause
-   instead.
+   item: after a handover, after a plan-only request, or when they ask you to
+   put the item down or hand it on. Not when the person only ends your turn,
+   such as "then stop": your start stays open. It puts back the status your
+   start changed, so a To do you moved to Doing goes back to To do, but only
+   while nobody has changed it since, the person you act for still owns it and
+   no one else has started it; otherwise the status stays and the reply says
+   why. Never move it to Done or Cancelled unless they ask. A handover is when
+   the item's `since_you_last_checked` shows a new owner, or a stop reminder
+   says it is now someone else's and the person you act for no longer owns it:
+   tell the person. A release answers the stop reminder for the item. When the
+   person asks you to pause, use Pause instead.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
@@ -160,8 +158,9 @@ link. When they did only part of it and the rest is still to come, such as an
 email sent and the answer awaited, report a `note` saying so instead.
 
 When an item read or a `report_back` reply says people outside the company can
-read the item, write your notes so they can read them too. Leave out internal details, such as
-the names of other workspaces, private links and internal discussions.
+read the item, write your notes so they can read them too. Leave out internal
+details, such as the names of other workspaces, private links and internal
+discussions.
 
 Pass `item_id` instead of `link` when you have an id from an item tool; never
 both. When the work came from a Brief, also pass the Brief's link as `from`.
@@ -177,21 +176,20 @@ wiki tools is credited to you.
 ## Without a link
 
 When the person asks you to report back but names no item, first call
-`report_back` with a `note` and no `link` or `item_id`. The note is the
-report: describe the work in one to three sentences, such as "Finished the
-release notes for 4.2 and shared them with support", not a list of everything
-it contained. Always send the note: without it the reply only asks you for
-one. The `event` is optional for this lookup. The call records nothing and
-asks no one: its reply has `recorded: false` and lists their open To dos
-as `choices`. Those that fit
-your note carry `match: "strong"`, and one whose whole title your note covers
-is also `best_match: true`. Do not make them name the item. Go by the matches:
+`report_back` with a `note` and no `link` or `item_id`. The note is the report:
+describe the work in one to three sentences, such as "Finished the release notes
+for 4.2 and shared them with support", not a list of everything it contained.
+Always send the note: without it the reply only asks you for one. The `event` is
+optional for this lookup. The call records nothing and asks no one: its reply
+has `recorded: false` and lists their open To dos as `choices`. Those that fit
+your note carry `match: "strong"`, and one whose whole title your note covers is
+also `best_match: true`. Do not make them name the item. Go by the matches:
 
 - **A `best_match`:** report on its `id` with your `event`, then tell them
   which item you used so they can correct it.
 - **A `strong` match but no `best_match`:** call again with `ask: true`, your
-  `event`, the same `note` and any `results`, and follow its reply: that call
-  is the report the To do they pick records. Where it can, In Parallel asks them in
+  `event`, the same `note` and any `results`, and follow its reply: that call is
+  the report the To do they pick records. Where it can, In Parallel asks them in
   place and records the one they pick.
 - **No match:** read the choices yourself: one may name the same work in
   other words or in another language. If one clearly does, treat it as a
