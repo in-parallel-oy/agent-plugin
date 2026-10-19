@@ -63,6 +63,8 @@ const RULES = {
     'part done with the rest still to come takes a `note`',
     'To close an item on your own reported work, also once you finished an earlier share with `close: false` and the rest is now done, report `finished` with `report_back`, not `close_action_items` or `update_action_item`',
     'report the work with `report_back`, closing included',
+    'when a `finished` reply says the person undid your earlier finish and the person you act for asked for this finish, close it with `close_action_items` as the reply says; otherwise ask them',
+    "except the close a `finished` reply names after the person's Undo",
     'When a stop reminder names an item you worked on, answer it once, by the first case that fits',
     '**Asked only to report, and reported**, such as their own work or "report started", with the item still open and yours and nothing awaited from the person: send no other report, say in one line what you reported, and stop',
     'When the person asks you only to report, such as their own work or "report started", report what they asked, and nothing more',
