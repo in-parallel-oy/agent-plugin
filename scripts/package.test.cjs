@@ -8,7 +8,7 @@ const { spawnSync } = require('node:child_process')
 const { unzipSync } = require('fflate')
 const { packageFiles } = require('./package')
 const source = path.resolve(__dirname, '..')
-const plugin = path.join(source, 'plugin')
+const plugin = path.join(source, 'plugins', 'in-parallel')
 
 for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
   test(`${client}: export includes executable hooks and literal MCP endpoints without local state`, () => {
@@ -124,11 +124,18 @@ test('portable and native OpenAI manifests agree on hooks and presentation', () 
   assert.equal(native.hooks, undefined)
   assert.deepEqual(portable.extensions['com.openai'], { interface: native.interface })
   const marketplace = JSON.parse(fs.readFileSync(path.join(source, '.agents/plugins/marketplace.json')))
-  assert.equal(marketplace.plugins[0].source.path, './plugin')
-  for (const name of ['package.json', 'plugin/.claude-plugin/plugin.json', 'plugin/.cursor-plugin/plugin.json']) {
+  assert.equal(marketplace.plugins[0].source.path, './plugins/in-parallel')
+  for (const name of ['package.json', 'plugins/in-parallel/.claude-plugin/plugin.json', 'plugins/in-parallel/.cursor-plugin/plugin.json']) {
     assert.equal(JSON.parse(fs.readFileSync(path.join(source, name))).version, native.version)
   }
   assert.equal(portable.version, native.version)
+})
+
+test('every manifest repeats the package.json version', () => {
+  const { VERSIONED, read } = require('./version')
+  const { version } = read('package.json')
+  for (const [file, keys] of VERSIONED) assert.equal(keys.reduce((node, key) => node[key], read(file)), version, file)
+  assert.equal(read('package-lock.json').version, version)
 })
 
 test('the installed plugin carries the repository LICENSE and NOTICE', () => {

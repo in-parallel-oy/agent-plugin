@@ -14,7 +14,7 @@ const AGENTS = [
 ]
 const SOURCE = path.resolve(__dirname, '..')
 // What plugin directories install. Setup tooling and experimental features stay outside it.
-const plugin = source => path.join(source, 'plugin')
+const plugin = source => path.join(source, 'plugins', 'in-parallel')
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(plugin(SOURCE), 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 // Features the server still gates per company. Store listings ship without
 // them; setup adds each experimental/<feature> folder for non-production endpoints only.

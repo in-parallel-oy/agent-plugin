@@ -278,7 +278,7 @@ test('switching environments keeps the same remote id in separate local records'
 
 test('client manifests agree on public identity and reference shipped entry points', () => {
   const root = path.join(__dirname, '..')
-  const shipped = path.join(root, 'plugin')
+  const shipped = path.join(root, 'plugins', 'in-parallel')
   const portable = JSON.parse(fs.readFileSync(path.join(shipped, 'plugin.json')))
   for (const client of ['claude', 'codex', 'cursor']) {
     const manifest = JSON.parse(fs.readFileSync(path.join(shipped, `.${client}-plugin/plugin.json`)))
@@ -295,7 +295,7 @@ test('client manifests agree on public identity and reference shipped entry poin
 
 test('every client reads its literal endpoint and ignores environment overrides', async t => {
   const h = await harness(t)
-  const shipped = file => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', file), 'utf8')).mcpServers.in_parallel.url
+  const shipped = file => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugins', 'in-parallel', file), 'utf8')).mcpServers.in_parallel.url
   // Plugin directories expect a plain absolute HTTPS URL with no install-time expansion.
   assert.equal(shipped('.mcp.json'), shipped('mcp.json'))
   assert.doesNotMatch(shipped('.mcp.json'), /\$/)
@@ -307,7 +307,7 @@ test('every client reads its literal endpoint and ignores environment overrides'
   assert.deepEqual(JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: undefined })), expected)
   assert.deepEqual(JSON.parse(await resolve({ IN_PARALLEL_MCP_URL: 'https://wrong-environment.test/mcp' })), expected)
   for (const client of ['codex', 'cursor']) {
-    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', `.${client}-plugin/plugin.json`), 'utf8'))
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugins', 'in-parallel', `.${client}-plugin/plugin.json`), 'utf8'))
     assert.equal(manifest.mcpServers, './mcp.json')
   }
 })

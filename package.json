@@ -23,7 +23,8 @@
   },
   "scripts": {
     "test": "node --test scripts/*.test.cjs",
-    "package": "node scripts/package.js"
+    "package": "node scripts/package.js",
+    "version": "node scripts/version.js && git add server.json .claude-plugin plugins/in-parallel"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",
