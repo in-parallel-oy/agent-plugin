@@ -8,8 +8,9 @@ description: Reads team context in In Parallel and records findings when asked. 
 In Parallel holds a team’s plans, meetings, decisions and shared knowledge in
 workspaces.
 
-When the person asks you to update or report to In Parallel about work done or
-in progress, such as "Update In Parallel" after a task, load the
+When the person asks you to update, report to, log or record in In Parallel
+work done or in progress, such as "Can you log that?" or "Update In Parallel"
+after a task, load the
 `in-parallel-agent-work` skill, if installed, and follow it. Load it too when
 work in the conversation, yours or theirs, may finish one of their To dos,
 including work they only mention as done, such as "the notes are in <path>": it

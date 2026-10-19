@@ -1,6 +1,6 @@
 ---
 name: in-parallel-agent-work
-description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, when they say they started, are working on or finished something and ask you to update or report to In Parallel, or when work in the conversation, yours or theirs, such as a file written, a draft done or a fix made, plausibly finishes one of their To dos, even when nobody asks to report it, including when the person only mentions it as done or hands over a result, such as "the notes are in <path>", "I fixed it" or "draft's done".
+description: Reports your work back to In Parallel on the item you were sent. Use when a prompt carries an in-parallel:// link, such as a Send to AI handoff, when the user names an In Parallel To do, risk or open question for you to work on, when they say they started, are working on or finished something and ask you to update or report to In Parallel, when they ask you to log or record work, such as "Can you log that?", or when work in the conversation, yours or theirs, such as a file written, a draft done or a fix made, plausibly finishes one of their To dos, even when nobody asks to report it, including when the person only mentions it as done or hands over a result, such as "the notes are in <path>", "I fixed it" or "draft's done".
 ---
 
 # Report work back on In Parallel items

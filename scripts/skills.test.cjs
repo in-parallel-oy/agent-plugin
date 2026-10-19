@@ -8,12 +8,14 @@ const path = require('node:path')
 
 const RULES = {
   'skills/in-parallel/SKILL.md': [
-    'such as "Update In Parallel" after a task, load the `in-parallel-agent-work` skill',
+    'or "Update In Parallel" after a task, load the `in-parallel-agent-work` skill',
+    'When the person asks you to update, report to, log or record in In Parallel work done or in progress, such as "Can you log that?"',
     'Load it too when work in the conversation, yours or theirs, may finish one of their To dos',
     'including work they only mention as done, such as "the notes are in <path>"',
     'For a specific question, call `search` directly',
   ],
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
+    'when they ask you to log or record work, such as "Can you log that?"',
     '1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**',
     '5. **Pause.**', '6. **Wait.**', '7. **Release.**', '## Without a link', '## Do not',
     'Read it again before any later start',
