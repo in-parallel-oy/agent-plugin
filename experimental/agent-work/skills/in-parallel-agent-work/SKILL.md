@@ -20,8 +20,8 @@ asks you to check with them before reporting.
 
 The link says `observation` for every kind of item. Each item read takes it as
 the id: `get_action_item` for a To do, `get_risk`, `get_open_question` or
-`get_decision` for the others, and `get_observations` when you do not know
-the kind.
+`get_decision` for the others, and `get_observations` (the link in `ids`) when
+you do not know the kind.
 
 Report only when you actually work on the item. Reading it or answering
 questions about it, such as "What has been done so far?", is not work: answer
