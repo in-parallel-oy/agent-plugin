@@ -31,11 +31,14 @@ function transcript(t, lines) {
 const shell = (file, command, output, extra = {}) => respond({ hook_event_name: 'PostToolUse', session_id: 's', transcript_path: file,
   tool_name: 'Bash', tool_input: { command }, tool_response: { stdout: output, stderr: '' }, ...extra })
 
-test('a prompt with an In Parallel link points to the agent-work skill with that link', () => {
+test('a prompt with an In Parallel link points to the agent-work skill and carries the request rules', () => {
   const output = respond({ hook_event_name: 'UserPromptSubmit', prompt: SEND })
   assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptSubmit')
   assert.equal(output.hookSpecificOutput.additionalContext,
-    `This prompt carries the In Parallel link ${LINK}. Load the in-parallel-agent-work skill and report on it as that skill says.`)
+    `This prompt carries the In Parallel link ${LINK}. Load the in-parallel-agent-work skill and report on it with report_back and that link as the request needs. ` +
+    'Asked only to add a note? Report just that "note", in the person\'s words: no "started" and no "finished". ' +
+    'If you work on this item, report "started" before you begin, and when the work is done, report "finished" with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
+    'Reading it or answering questions about it is not work: do not report. Asked only for a plan? Give it and do not start. Asked to start, then wait for a go-ahead? Report "started", then a "note" with waiting: true. Told not to report (anything else)? Report only what they asked for.')
   for (const text of ['Fix the Safari login', 'see in-parallel:// for details', 'https://www.in-parallel.ai/acme/action-items/1', '']) {
     assert.equal(respond({ hook_event_name: 'UserPromptSubmit', prompt: text }), null, text)
   }
