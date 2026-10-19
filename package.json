@@ -14,10 +14,8 @@
     "scripts/*.js",
     "plugin",
     "experimental",
-    ".claude-plugin",
     "README.md",
     "LICENSE",
-    ".agents/plugins/marketplace.json",
     "NOTICE"
   ],
   "engines": {

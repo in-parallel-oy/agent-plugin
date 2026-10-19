@@ -8,8 +8,8 @@ function payload() {
   try { return JSON.parse(fs.readFileSync(0, 'utf8')) || {} } catch { return {} }
 }
 
-// Every shipped MCP configuration holds a literal URL: the repository default,
-// or the one setup and packaging write. Hooks read it as-is and never consult
+// Every shipped MCP configuration holds a literal URL, written by setup and
+// packaging beside this scripts/ folder. Hooks read it as-is and never consult
 // the environment for it; a variable reference fails validation below.
 function endpoint(client = process.env.IN_PARALLEL_CLIENT || 'claude') {
   const file = client === 'claude' ? '.mcp.json' : 'mcp.json'
