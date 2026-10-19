@@ -161,8 +161,8 @@ its In Parallel connection reports for, usually you. When In Parallel says
 people outside your company can read the item, your assistant writes its notes
 for them and leaves out internal details.
 
-When you ask your assistant to report work without naming an item, it works
-out the item itself: it sends `report_back` one to three sentences describing the work,
+When you ask your assistant to report work without naming an item, such as
+"Can you log that?", it works out the item itself: it sends `report_back` one to three sentences describing the work,
 and In Parallel records nothing yet and replies with your open To dos, the ones that fit
 marked a strong match. Your assistant reports on the best match, a To do whose
 whole title the note covers, and tells you which; if only strong matches fit,
@@ -182,8 +182,10 @@ start; if it had started, or you ask it to put the item down or hand it on, it
 reports that it released the item, which puts back the status its start
 changed while nobody has changed it since. Telling it to stop for now, such
 as "then stop", only ends its turn: it does not release, and tells you what
-remains. If you ask it to check with you
-before reporting, it does. If you
+remains. When you ask it to start and wait for your go-ahead, it reports that
+it started and a note that it is waiting on you. When you ask only for a
+report, such as "report started", it reports that and nothing more. If you ask
+it to check with you before reporting, it does. If you
 ask it to pause, it reports a note saying so and leaves the item in Doing; if
 it is reminded to finish when it stops, it tells you the work is paused. When
 it stops to wait for you, such as for an approval or an answer, it reports a
