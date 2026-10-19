@@ -63,6 +63,10 @@ const RULES = {
     'To close an item on your own reported work, also once you finished an earlier share with `close: false` and the rest is now done, report `finished` with `report_back`, not `close_action_items` or `update_action_item`',
     'report the work with `report_back`, closing included',
     'When a stop reminder names an item you worked on, answer it once, by the first case that fits',
+    '**Asked only to report, and reported**, such as their own work or "report started", with the item still open and nothing awaited from the person: send no other report, say in one line what you reported, and stop',
+    'When the person asks you only to report, such as their own work or "report started", report what they asked, and nothing more',
+    'call again with `ask: true`, your `event`, the same `note` and any `results`, and follow its reply: that call is the report the To do they pick records',
+    'To add a link to an item you already finished, report a `note` with the link in `results`; it changes no status',
     '**Told to stop for now or to do nothing more, with nothing awaited from the person**, such as "then stop" or "don\'t do anything else": send no report, not even a note, and do not release; tell the person what remains, and stop',
     '**Waiting on the person**, such as for a go-ahead, an approval or an answer, also when they told you to stop and wait: report a `note` with `waiting: true`, unless you already sent one',
     'tell them what remains, and send no other report. When they also say to wait for them, such as "stop and wait for my go-ahead", report the waiting note **Wait** describes before you stop',
@@ -79,6 +83,9 @@ const ORDER = {
   'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': [
     // "Stop and wait for my go-ahead" both stops and waits: the waiting note must win.
     ['- **Waiting on the person', '- **Told to stop for now'],
+    // "Report started and wait for my go-ahead" still sends the waiting note; a done report-only request sends nothing more.
+    ['- **Waiting on the person', '- **Asked only to report'],
+    ['- **Asked only to report', '- **Work done'],
   ],
 }
 

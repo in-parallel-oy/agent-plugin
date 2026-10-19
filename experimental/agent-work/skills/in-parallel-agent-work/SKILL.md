@@ -139,6 +139,9 @@ first case that fits:
 - **Waiting on the person**, such as for a go-ahead, an approval or an
   answer, also when they told you to stop and wait: report a `note` with
   `waiting: true`, unless you already sent one.
+- **Asked only to report, and reported**, such as their own work or "report
+  started", with the item still open and nothing awaited from the person:
+  send no other report, say in one line what you reported, and stop.
 - **Told to stop for now or to do nothing more, with nothing awaited from the
   person**, such as "then stop" or "don't do anything else": send no report,
   not even a note, and do not release; tell the person what remains, and
@@ -146,6 +149,10 @@ first case that fits:
 - **Put down, handed over or asked only for a plan:** report `released`.
 - **Work done:** report `finished` with `results`.
 - **Otherwise:** tell the person what remains, and stop.
+
+When the person asks you only to report, such as their own work or "report
+started", report what they asked, and nothing more: that is the whole
+request, and the item may stay open.
 
 When the person says they did the work themselves, one `event: "finished"`
 report is enough: no start or re-read, and `results` only if they gave a
@@ -182,8 +189,9 @@ is also `best_match: true`. Do not make them name the item. Go by the matches:
 
 - **A `best_match`:** report on its `id` with your `event`, then tell them
   which item you used so they can correct it.
-- **A `strong` match but no `best_match`:** call again with `ask: true` and
-  your `event`, and follow its reply. Where it can, In Parallel asks them in
+- **A `strong` match but no `best_match`:** call again with `ask: true`, your
+  `event`, the same `note` and any `results`, and follow its reply: that call
+  is the report the To do they pick records. Where it can, In Parallel asks them in
   place and records the one they pick.
 - **No match:** read the choices yourself: one may name the same work in
   other words or in another language. If one clearly does, treat it as a
@@ -204,6 +212,8 @@ the choices once, then report on the one they name.
 
 For local work with no link, such as a file on their machine, name its path
 in the `note` and leave `results` empty. `results` takes only http(s) links.
+To add a link to an item you already finished, report a `note` with the link
+in `results`; it changes no status.
 
 A matching To do owned by a teammate may be missing from `choices`;
 `list_action_items` can find it. Report on someone else's To do only when the
