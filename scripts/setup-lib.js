@@ -60,7 +60,8 @@ function endpoint(value) {
   }
 }
 
-const experimentalFor = url => DEVELOPMENT_HOSTS.includes(new URL(endpoint(url)).hostname) ? EXPERIMENTAL : []
+// Takes a URL endpoint() already normalised.
+const experimentalFor = url => DEVELOPMENT_HOSTS.includes(new URL(url).hostname) ? EXPERIMENTAL : []
 
 // The retired work journal's local cache. setup/ beside it holds managed installs.
 function removeJournalCache(home = os.homedir(), log = console.log) {
@@ -178,38 +179,50 @@ function target(agent, home = os.homedir()) {
     : path.join(home, '.in-parallel', 'setup', agent.id)
 }
 
-// hooks: false on the agent leaves out experimental hooks and their scripts, for
-// clients that run none.
-function bundle(agent, url, source = SOURCE) {
-  const experimental = experimentalFor(url)
+const manifestFile = agent => `.${agent.id}-plugin/plugin.json`
+const pluginPrefix = agent => agent.id === 'cursor' ? '' : PLUGIN_DIR
+
+// The plugin as a client loads it: skills, the experimental features the endpoint
+// gets, the MCP config with the literal endpoint, and the manifest, its version
+// stamped with a digest of the content so a client that caches by version updates.
+// hooks: false leaves out experimental hooks and their scripts, for clients that run none.
+function pluginFiles(agent, url, { hooks = true, source = SOURCE } = {}) {
+  url = endpoint(url)
   const files = {}
-  const prefix = agent.id === 'cursor' ? '' : PLUGIN_DIR
-  const manifestPath = `.${agent.id}-plugin/plugin.json`
+  const manifestPath = manifestFile(agent)
   const manifest = JSON.parse(fs.readFileSync(path.join(source, manifestPath)))
-  for (const root of ['', ...experimental.map(feature => path.join('experimental', feature))]) {
-    for (const [name, content] of Object.entries(tree(path.join(source, root, 'skills')))) files[`${prefix}skills/${name}`] = content
-    const hooks = path.join(source, root, 'hooks', `${agent.id}.json`)
-    if (!root || agent.hooks === false || !fs.existsSync(hooks)) continue
+  for (const root of ['', ...experimentalFor(url).map(feature => path.join('experimental', feature))]) {
+    for (const [name, content] of Object.entries(tree(path.join(source, root, 'skills')))) files[`skills/${name}`] = content
+    const hookFile = path.join(source, root, 'hooks', `${agent.id}.json`)
+    if (!root || !hooks || !fs.existsSync(hookFile)) continue
     if (manifest.hooks) throw new Error(`Only one experimental feature can add ${agent.name} hooks.`)
     manifest.hooks = `./hooks/${agent.id}.json`
-    files[`${prefix}hooks/${agent.id}.json`] = fs.readFileSync(hooks)
-    for (const [name, content] of Object.entries(tree(path.join(source, root, 'scripts')))) files[`${prefix}scripts/${name}`] = content
+    files[`hooks/${agent.id}.json`] = fs.readFileSync(hookFile)
+    for (const [name, content] of Object.entries(tree(path.join(source, root, 'scripts')))) files[`scripts/${name}`] = content
   }
-  for (const name of ['LICENSE', 'NOTICE']) files[`${prefix}${name}`] = fs.readFileSync(path.join(source, name))
+  for (const name of ['LICENSE', 'NOTICE']) files[name] = fs.readFileSync(path.join(source, name))
   // The Codex manifest's interface icons point at ./assets/logo.png.
-  if (agent.id === 'codex') files[`${prefix}assets/logo.png`] = fs.readFileSync(path.join(source, 'assets', 'logo.png'))
+  if (agent.id === 'codex') files['assets/logo.png'] = fs.readFileSync(path.join(source, 'assets', 'logo.png'))
   // Write the literal endpoint, including for Claude. Never alter the source checkout.
   for (const name of ['.mcp.json', 'mcp.json']) {
     const config = JSON.parse(fs.readFileSync(path.join(source, name), 'utf8'))
-    config.mcpServers.in_parallel.url = endpoint(url)
-    files[`${prefix}${name}`] = json(config)
+    config.mcpServers.in_parallel.url = url
+    files[name] = json(config)
   }
-  files[`${prefix}${manifestPath}`] = json(manifest)
-  const digests = Object.fromEntries(Object.entries(files).map(([name, content]) => [name, digest(content)]))
-  const hash = digest(Object.entries(digests).sort(([a], [b]) => a.localeCompare(b)).map(([name, sum]) => `${name}\0${sum}`).join('\n'))
+  files[manifestPath] = json(manifest)
+  const hash = digest(Object.keys(files).sort((a, b) => a.localeCompare(b)).map(name => `${name}\0${digest(files[name])}`).join('\n'))
   manifest.version = `${manifest.version.split('+')[0]}+setup.${hash.slice(0, 12)}`
-  files[`${prefix}${manifestPath}`] = json(manifest)
-  digests[`${prefix}${manifestPath}`] = digest(files[`${prefix}${manifestPath}`])
+  files[manifestPath] = json(manifest)
+  return files
+}
+
+// What setup installs: the plugin, beside the setup marketplace under
+// plugins/in-parallel/ for Claude Code and Codex, and the receipt to write with it.
+function bundle(agent, url, source = SOURCE) {
+  url = endpoint(url)
+  const plugin = pluginFiles(agent, url, { source })
+  const manifest = JSON.parse(plugin[manifestFile(agent)])
+  const files = Object.fromEntries(Object.entries(plugin).map(([name, content]) => [`${pluginPrefix(agent)}${name}`, content]))
   if (agent.id === 'claude') {
     files['.claude-plugin/marketplace.json'] = json({
       name: MARKETPLACE, owner: { name: 'In Parallel' },
@@ -224,17 +237,9 @@ function bundle(agent, url, source = SOURCE) {
     })
   }
   const names = Object.keys(files).sort((a, b) => a.localeCompare(b))
-  const receipt = { format: 1, agent: agent.id, endpoint: endpoint(url), version: manifest.version, experimental,
-    files: Object.fromEntries(names.map(name => [name, digests[name] ?? digest(files[name])])) }
-  return { files: { ...Object.fromEntries(names.map(name => [name, files[name]])), [RECEIPT]: json(receipt) }, receipt }
-}
-
-// The plugin alone, as a client loads it: no setup marketplace and no receipt.
-function pluginFiles(agent, url, source = SOURCE) {
-  const prefix = agent.id === 'cursor' ? '' : PLUGIN_DIR
-  return Object.fromEntries(Object.entries(bundle(agent, url, source).files)
-    .filter(([name]) => name !== RECEIPT && name.startsWith(prefix))
-    .map(([name, content]) => [name.slice(prefix.length), content]))
+  const receipt = { format: 1, agent: agent.id, endpoint: url, version: manifest.version, experimental: experimentalFor(url),
+    files: Object.fromEntries(names.map(name => [name, digest(files[name])])) }
+  return { files: Object.fromEntries(names.map(name => [name, files[name]])), receipt }
 }
 
 function writeBundle(root, files, agent, expected = null) {
@@ -557,7 +562,7 @@ function install(agent, url, { home, source, cwd = process.cwd(), env, execute =
     if (notes.length) log(notes.join('\n'))
     return
   }
-  writeBundle(root, prepared.files, agent, state.receipt)
+  writeBundle(root, { ...prepared.files, [RECEIPT]: json(receipt) }, agent, state.receipt)
   if (agent.command) {
     if (!state.registered) execute(agent.command, ['plugin', 'marketplace', 'add', root])
     if (agent.id === 'claude') {
@@ -695,11 +700,11 @@ function diagnose(agent, { home, cwd, env, source, execute, log }, previous) {
   // Rerunning setup cannot fix a marketplace that points elsewhere, so it comes first.
   if (state?.elsewhere) throw elsewhereError(agent)
   const installedFeatures = receipt.experimental || RETIRED
-  if (installedFeatures.join() !== experimentalFor(receipt.endpoint).join()) {
+  if (installedFeatures.join() !== experimentalFor(endpoint(receipt.endpoint)).join()) {
     throw new Error(`Installed with ${installedFeatures.some(feature => RETIRED.includes(feature)) ? 'the retired work journal' : `experimental features that ${receipt.endpoint} no longer gets`}. Run setup again to update.`)
   }
   // Files added to the plugin since this copy was installed also need setup again.
-  const missing = Object.keys(bundle(agent, receipt.endpoint, source).receipt.files).some(name => !(name in receipt.files))
+  const missing = Object.keys(pluginFiles(agent, receipt.endpoint, { source })).some(name => !(`${pluginPrefix(agent)}${name}` in receipt.files))
   if (missing) throw new Error('Installed with outdated files. Run setup again to update.')
   const mcp = locations.find(location => location.message)
   // The legacy entry's fix is already listed under its location.

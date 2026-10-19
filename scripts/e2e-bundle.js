@@ -27,8 +27,7 @@ function e2eFiles({ agent: id, url, tokenEnv }) {
     files = setup.pluginFiles(agent, url)
     config = '.mcp.json'
   } else {
-    files = { ...setup.bundle(agent, url).files }
-    delete files[setup.RECEIPT]
+    files = setup.bundle(agent, url).files
     // A marketplace of its own, so it never collides with the one setup registers.
     const market = JSON.parse(files['.agents/plugins/marketplace.json'])
     files['.agents/plugins/marketplace.json'] = setup.json({ ...market, name: MARKETPLACE, interface: { displayName: 'In Parallel end-to-end' } })

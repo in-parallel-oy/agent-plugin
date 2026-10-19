@@ -199,6 +199,26 @@ test('unmanaged directories and symlinks are never replaced', t => {
   assert.equal(fs.existsSync(other), true)
 })
 
+test('setup installs the plugin as a client loads it, beside the setup marketplace, with the receipt apart', () => {
+  const sha = content => require('node:crypto').createHash('sha256').update(content).digest('hex')
+  for (const agent of setup.AGENTS) {
+    const url = 'https://www.in-parallel.dev/mcp'
+    const plugin = setup.pluginFiles(agent, url)
+    const { files, receipt } = setup.bundle(agent, url)
+    const prefix = agent.id === 'cursor' ? '' : setup.PLUGIN_DIR
+    assert.deepEqual(Object.keys(files), Object.keys(receipt.files))
+    assert.equal(setup.RECEIPT in files, false)
+    for (const [name, content] of Object.entries(plugin)) assert.equal(receipt.files[`${prefix}${name}`], sha(content), name)
+    const market = { claude: ['.claude-plugin/marketplace.json'], codex: ['.agents/plugins/marketplace.json'], cursor: [] }[agent.id]
+    assert.deepEqual(Object.keys(files).filter(name => !name.startsWith(prefix) || !(name.slice(prefix.length) in plugin)), market)
+    assert.equal(JSON.parse(plugin[`.${agent.id}-plugin/plugin.json`]).version, receipt.version)
+    // A client that runs no hooks gets the plugin without them.
+    const unhooked = setup.pluginFiles(agent, url, { hooks: false })
+    assert.ok(!Object.keys(unhooked).some(name => /^(hooks|scripts)\//.test(name)))
+    assert.equal(JSON.parse(unhooked[`.${agent.id}-plugin/plugin.json`]).hooks, undefined)
+    assert.ok(unhooked['skills/in-parallel-agent-work/SKILL.md'])
+  }
+})
 
 test('only the Development environment and localhost add experimental features, and reminder hooks only for Claude Code and Codex', () => {
   for (const agent of setup.AGENTS) {
