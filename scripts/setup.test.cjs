@@ -286,7 +286,6 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
     setup.doctor(agent, options)
     const dev = !url.includes('.example')
     assert.equal(/Experimental: agent-work/.test(logs.join('\n')), dev)
-    assert.equal(/Send to AI/.test(logs.join('\n')), dev)
   }
   setup.install(agent, PRODUCTION, options)
   const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -295,7 +294,7 @@ test('doctor asks to rerun setup for work journal receipts and accepts the curre
 })
 
 for (const agent of setup.AGENTS) {
-  test(`${agent.name}: Development install adds the work-on command and reminders; doctor reports them; uninstall removes them`, t => {
+  test(`${agent.name}: Development install adds the work-on command and reminders; doctor reports the feature; uninstall removes them`, t => {
     const home = fixture(t)
     const native = host(agent, home)
     const logs = []
@@ -317,9 +316,8 @@ for (const agent of setup.AGENTS) {
     logs.length = 0
     setup.doctor(agent, options)
     const report = logs.join('\n')
-    assert.match(report, /Experimental: agent-work\nCommands: work-on\n/)
-    assert.match(report, hooks ? /Reminder hooks: on prompts with an In Parallel link, after pull requests, and before stopping/ : /Reminder hooks: not available for this client/)
-    assert.match(report, /work-on command/)
+    assert.match(report, /Experimental: agent-work\n/)
+    assert.equal(/\/hooks/.test(report), hooks)
 
     // A copy installed before the command and reminders existed needs setup again.
     const file = path.join(root, setup.RECEIPT)

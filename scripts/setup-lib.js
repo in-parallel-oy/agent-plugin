@@ -540,15 +540,8 @@ function instructions(agent, hooks) {
   return 'Reload Cursor, then check In Parallel in Customize and authenticate MCP. Local plugin imports must be allowed; an installed marketplace copy takes precedence.'
 }
 
-const verify = experimental => `ask your agent: Check my In Parallel connection.${experimental.length ? '\nTo try reporting back, send an In Parallel To do to your agent with Send to AI, or pick one with the work-on command.' : ''}`
-
-// What the experimental features installed, from the receipt's file list.
-function features(receipt) {
-  const lines = [`Experimental: ${receipt.experimental.join(', ')}`]
-  if (Object.keys(receipt.files).some(name => /(^|\/)skills\/work-on\//.test(name))) lines.push('Commands: work-on')
-  lines.push(hooked(receipt) ? 'Reminder hooks: on prompts with an In Parallel link, after pull requests, and before stopping' : 'Reminder hooks: not available for this client')
-  return lines.join('\n')
-}
+const VERIFY = 'ask your agent: Check my In Parallel connection.'
+const features = experimental => experimental.length ? `\nExperimental: ${experimental.join(', ')}` : ''
 
 function install(agent, url, { home, source, cwd = process.cwd(), env, execute = run, dryRun = false, log = console.log, replace = [] } = {}) {
   url = endpoint(url)
@@ -592,7 +585,7 @@ function install(agent, url, { home, source, cwd = process.cwd(), env, execute =
   }
   removeJournalCache(home, log)
   const { experimental } = receipt
-  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${experimental.length ? `\n${features(receipt)}` : ''}${notes.map(note => `\n${note}`).join('')}\n${instructions(agent, hooked(receipt))}\nThen ${verify(experimental)}`)
+  log(`${agent.name}: ${agent.command ? 'installed' : 'files prepared'} at ${root}${features(experimental)}${notes.map(note => `\n${note}`).join('')}\n${instructions(agent, hooked(receipt))}\nThen ${VERIFY}`)
 }
 
 // Uninstall removes only what setup wrote and reports every other copy it kept.
@@ -690,7 +683,7 @@ function doctor(agent, { home = os.homedir(), cwd = process.cwd(), env = process
     if (!matches(state.installed, receipt)) throw new Error('Prepared files do not match an enabled native installation. Run setup again.')
   }
   verifyMcp(agent, receipt.endpoint, execute)
-  log(`${agent.name} installed: files match the setup receipt${agent.command ? `; ${agent.name} reports version ${receipt.version} enabled` : '; Cursor discovers the folder when it reloads'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; no conflicting entry in the locations above; runtime connection not checked)'}${installedFeatures.length ? `\n${features(receipt)}` : ''}\n${agent.name} working: not verified by setup. To verify, ${verify(installedFeatures)}\n${instructions(agent, hooked(receipt))}`)
+  log(`${agent.name} installed: files match the setup receipt${agent.command ? `; ${agent.name} reports version ${receipt.version} enabled` : '; Cursor discovers the folder when it reloads'}.\nMCP: ${receipt.endpoint}${agent.id === 'codex' ? ' (enabled connection configuration verified; authentication not checked)' : ' (included in the user plugin; no conflicting entry in the locations above; runtime connection not checked)'}${features(installedFeatures)}\n${agent.name} working: not verified by setup. To verify, ${VERIFY}\n${instructions(agent, hooked(receipt))}`)
 }
 
 module.exports = { AGENTS, SOURCE, PRODUCTION, DEVELOPMENT, LOOPBACK_HOSTS, MARKETPLACE, PLUGIN, PLUGIN_DIR, RECEIPT, ReplacementRequired, json, writeFiles, endpoint, target, bundle, pluginFiles, managed, install, uninstall, doctor }
