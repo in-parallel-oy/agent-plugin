@@ -32,11 +32,11 @@ work on unless the person asks you to report it.
 One rule for start, plan and stop: start only when you are going to do the
 work. When the person asks only for a plan, such as "tell me your plan",
 give the plan and do not start. If you had already started, report
-`released` once you have told them. An explicit "start" is a request to
-start: for "Start this and tell me your plan, but wait for my go-ahead",
+`released` once you have told them. When the person asks you to start the
+item, such as "Start this and tell me your plan, but wait for my go-ahead",
 report `started`, give the plan and report the waiting note **Wait**
-describes. When the person asks you to put the item
-down or hand it on, report `released` too. `released` is for putting the work
+describes. When the person asks you to put the item down or hand it on, report
+`released` too. `released` is for putting the work
 down, not for ending your turn: when the person says "then stop", "stop
 there" or "don't do anything else" after a step, they mean end this turn, so
 your start stays open; tell them what remains, and send no other report.
