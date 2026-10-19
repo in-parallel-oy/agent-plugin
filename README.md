@@ -209,9 +209,16 @@ and log in with `mcp-publisher login github` as an Owner of the
 `in-parallel-oy` GitHub organization.
 
 Keep `key.pem` out of the repo. Each published version is permanent, so bump
-`version` in `server.json` together with `plugin.json` and publish again when
+`version` in `server.json` together with `plugin/plugin.json` and publish again when
 the listing should change.
 
+## Repository layout
+
+Plugin directories and marketplaces install `plugin/` only: the skill, the MCP
+connection, each client's manifest, `LICENSE` and `NOTICE`. The setup command,
+its `package.json` and lockfile, `experimental/` and the build scripts stay at
+the repository root, outside the installed plugin. Keep `plugin/LICENSE` and
+`plugin/NOTICE` identical to the root copies; the tests check this.
 
 ## License
 

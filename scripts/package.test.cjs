@@ -130,3 +130,7 @@ test('portable and native OpenAI manifests agree on hooks and presentation', () 
   }
   assert.equal(portable.version, native.version)
 })
+
+test('the installed plugin carries the repository LICENSE and NOTICE', () => {
+  for (const name of ['LICENSE', 'NOTICE']) assert.deepEqual(fs.readFileSync(path.join(plugin, name)), fs.readFileSync(path.join(source, name)))
+})
