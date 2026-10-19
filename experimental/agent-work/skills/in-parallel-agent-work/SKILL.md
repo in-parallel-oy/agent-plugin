@@ -76,8 +76,9 @@ why you are stopping without reporting.
    that `note`, in their words: no `started` and no `finished`.
 3. **Re-read before finishing.** Read the item again with its tool, such as
    `get_action_item`. Its `since_you_last_checked` says what people changed
-   while you worked, such as a new owner, an update or a linked decision.
-   Adjust your work when it changes the task.
+   while you worked, such as a new owner, an update or a linked decision;
+   it is absent when nothing changed. Adjust your work when it changes the
+   task.
 4. **Finish.** Call `report_back` with `event: "finished"` and `results`:
    links to what the work produced, each with a short label, such as the
    revised draft or the shared deck:
@@ -99,10 +100,12 @@ why you are stopping without reporting.
    your own reported work, also once you finished an earlier share with
    `close: false` and the rest is now done, report `finished` with
    `report_back`, not `close_action_items` or `update_action_item`: closing
-   with those is housekeeping and records no work. One exception: when a
-   `finished` reply says the person undid your earlier finish and the person
-   you act for asked for this finish, close it with `close_action_items` as
-   the reply says; otherwise ask them.
+   with those is housekeeping and records no work.
+
+   **After the person's Undo.** When a person undid your earlier finish, a
+   new `finished` is recorded but moves no status, and its reply says so. If
+   the person you act for asked for this finish, close the item with
+   `close_action_items` as the reply says; otherwise ask them first.
 5. **Pause.** When the person asks you to pause, report `event: "note"`
    saying so and leave the item in Doing. If the stop reminder then names it,
    tell the person the work is paused.
@@ -124,8 +127,9 @@ why you are stopping without reporting.
    why. Never move it to Done or Cancelled unless they ask. A handover is when
    the item's `since_you_last_checked` shows a new owner, or a stop reminder
    says it is now someone else's and the person you act for no longer owns it:
-   tell the person. A release answers the stop reminder for the item. When the
-   person asks you to pause, use Pause instead.
+   report `released` without asking first, then tell the person. A release
+   answers the stop reminder for the item. When the person asks you to
+   pause, use Pause instead.
 
 Reminders depend on the client. In Claude Code, the plugin's stop hook may
 remind you of an unfinished start. Codex runs the plugin's hooks only once the
@@ -166,7 +170,8 @@ discussions.
 
 Pass `item_id` instead of `link` when you have an id from an item tool; never
 both. When the work came from a Brief, also pass the Brief's link as `from`.
-An identical repeat report is not recorded twice, so retrying is safe.
+An identical repeat report is not recorded twice, so retrying is safe. A
+`finished` after the person undid your earlier finish is not a repeat.
 
 In a git checkout, `gh pr view --json url --jq .url` gives the branch's pull
 request. Pass only links you have seen; never guess one.
