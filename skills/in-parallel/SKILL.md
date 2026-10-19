@@ -10,11 +10,10 @@ workspaces.
 
 When the person asks you to update, report to, log or record in In Parallel
 work done or in progress, such as "Can you log that?" or "Update In Parallel"
-after a task, load the
-`in-parallel-agent-work` skill, if installed, and follow it. Load it too when
-work in the conversation, yours or theirs, may finish one of their To dos,
-including work they only mention as done, such as "the notes are in <path>": it
-says when to offer once to record it. Without it, call `report_back` as its
+after a task, load the `in-parallel-agent-work` skill, if installed, and follow
+it. Load it too when work in the conversation, yours or theirs, may finish one
+of their To dos, including work they only mention as done, such as "the notes
+are in <path>": it says when to offer once to record it. Without it, call `report_back` as its
 tool description says. Either way that reports the work on its item and is not
 publishing: do not look up workspaces, search pages or ask where to publish.
 
