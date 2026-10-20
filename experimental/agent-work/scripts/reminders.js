@@ -27,8 +27,8 @@ const fs = require('node:fs')
 
 const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 // A fenced code block, closed or running to the end: a link in one is quoted, as in
-// a pasted diff or log, not sent.
-const FENCED = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm
+// a pasted diff or log, not sent. A backtick fence's opening line has no other backtick.
+const FENCED = /^ {0,3}(`{3,}(?=[^`\n]*\n)|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+(?!\d)/g
 // Only these commands are checked for a pull request link: what lists or logs pull requests is not new work.
 const PR_COMMAND = /\bgh\s+pr\s+(create|view)\b/

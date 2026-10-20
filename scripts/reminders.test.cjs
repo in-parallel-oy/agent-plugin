@@ -54,6 +54,8 @@ test('a prompt with an In Parallel link points to the agent-work skill and carri
   }
   // A link outside the block, inline code included, is sent.
   assert.ok(respond({ hook_event_name: 'UserPromptSubmit', prompt: '```\nnpm test\n```\nWork on `' + LINK + '`' }))
+  // Triple backticks closed on the same line are inline code, not a fence.
+  assert.ok(respond({ hook_event_name: 'UserPromptSubmit', prompt: '```' + LINK + '```\nwork on this' }))
   // Only well-formed links are echoed back.
   const odd = respond({ hook_event_name: 'UserPromptSubmit', prompt: 'in-parallel://acme/action_item/1"><b>x</b> and in-parallel://acme/risk/2' })
   assert.match(odd.hookSpecificOutput.additionalContext, /link in-parallel:\/\/acme\/action_item\/1, in-parallel:\/\/acme\/risk\/2\./)
