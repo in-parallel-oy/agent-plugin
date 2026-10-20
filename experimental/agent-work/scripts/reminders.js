@@ -46,7 +46,7 @@ const REPORT_BACK = new RegExp(`^mcp__${SERVER}__report_back$`)
 const CONFIGURED = ['local', 'user', 'project', 'enterprise', 'managed']
 // A report_back call inside a Codex code mode script.
 const SCRIPTED_REPORT_BACK = new RegExp(`\\btools\\.mcp__(${OWN_SERVERS.join('|')})__report_back\\s*\\(`)
-const SCRIPTED_STARTED = /\bevent\s*:\s*["'`]started["'`]/
+const SCRIPTED_STARTED = /\bevent["']?\s*:\s*["'`]started["'`]/
 // The newest part of the transcript is enough to tell whether In Parallel work is in it.
 const TAIL = 4 * 1024 * 1024
 

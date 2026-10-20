@@ -115,6 +115,7 @@ test('a started report in a Codex rollout counts, as a function call or in a cod
     [codexPrompt(SEND), codexCall('report_back', { link: LINK, event: 'started' })],
     [codexPrompt(SEND), codexCall('mcp__in_parallel__report_back', { link: LINK, event: 'started' })],
     [codexPrompt(SEND), codexScript(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: 'started' })`)],
+    [codexPrompt(SEND), codexScript(`await tools.mcp__in_parallel__report_back(${JSON.stringify({ link: LINK, event: 'started' })})`)],
   ]) assert.ok(shell(transcript(t, lines), '', PR, bash('gh pr create --fill')))
   for (const lines of [
     [codexPrompt(SEND)],
