@@ -7,7 +7,7 @@ async function main(args = process.argv.slice(2), {
   prompts, home, cwd, env, interactive = process.stdin.isTTY && process.stdout.isTTY, operations = setup,
 } = {}) {
   if (args.includes('--help') || args.includes('-h')) {
-    console.log('In Parallel setup\n\n  in-parallel             Choose agents and install interactively\n  in-parallel --dry-run   Preview an interactive installation\n  in-parallel doctor      Check setup-managed installations\n  in-parallel uninstall   Choose agents to remove interactively\n\nFrom a checkout: node scripts/setup.js [command]\nInstalls for your user. Node 20.12+ required; Claude Code and Codex CLI need their CLIs on PATH.\nClaude Desktop Chat/Cowork and ChatGPT: use the app plugin browser; see README.md.\nBuild uploadable bundles: node scripts/package.js --help')
+    console.log('In Parallel setup\n\n  in-parallel             Choose agents and install interactively\n  in-parallel --dry-run   Preview an interactive installation\n  in-parallel doctor      Check setup-managed installations without changing anything\n  in-parallel uninstall   Choose agents to remove interactively\n\nFrom a checkout: node scripts/setup.js [command]\nInstalls for your user. Node 20.12+ required; Claude Code and Codex CLI need their CLIs on PATH.\nClaude Desktop Chat/Cowork and ChatGPT: use the app plugin browser; see README.md.\nBuild uploadable bundles: node scripts/package.js --help')
     return 0
   }
   const actions = args.filter(arg => !arg.startsWith('-'))
@@ -47,7 +47,7 @@ async function main(args = process.argv.slice(2), {
     const defaultUrl = existing.length && new Set(existing).size === 1 ? existing[0] : production
     const environments = [
       { value: production, label: 'Production', hint: production },
-      { value: 'https://www.in-parallel.dev/mcp', label: 'Development', hint: 'https://www.in-parallel.dev/mcp' },
+      { value: setup.DEVELOPMENT, label: 'Development', hint: setup.DEVELOPMENT },
       { value: 'custom', label: 'Custom', hint: 'Localhost or another server' },
     ]
     const initialValue = environments.some(option => option.value === defaultUrl) ? defaultUrl : 'custom'
@@ -87,7 +87,7 @@ async function main(args = process.argv.slice(2), {
   }
   ui.outro(status ? 'Some agents need attention. Fix the errors above and run setup again.'
     : dryRun ? 'Preview complete. No changes made.' : skipped === agents.length ? 'No installations changed.'
-      : action === 'uninstall' ? 'Selected integrations removed.' : 'Setup complete. Follow the client steps above to activate hooks and sign in.')
+      : action === 'uninstall' ? 'Selected integrations removed.' : 'Setup complete. Follow the client steps above to sign in.')
   return status
 }
 

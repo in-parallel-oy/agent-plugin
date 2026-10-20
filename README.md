@@ -57,8 +57,7 @@ new conversation with your assistant.
 
 The plugin has two parts: the `in-parallel` skill and a connection to the In
 Parallel server. It runs no hooks or scripts on your machine and keeps no local
-files. The files under `experimental/` and the hook scripts in `scripts/` are
-not part of it; see [Experimental features](#experimental-features).
+files.
 
 ### What is sent to In Parallel
 
@@ -81,13 +80,29 @@ see, read or store a password or token.
 two setup dependencies. It copies the plugin to `~/.in-parallel/setup/` for
 Claude Code and Codex, or `~/.cursor/plugins/local/in-parallel` for Cursor, and
 registers it with the `claude` or `codex` command. It writes your chosen server
-URL into that copy. For the Development environment or a custom server, it also
-adds the [experimental features](#experimental-features).
+URL into that copy.
 
 Before it installs, it reads your existing MCP settings to find a conflicting
 In Parallel entry: `~/.claude.json` (or the one in `CLAUDE_CONFIG_DIR`),
 `.mcp.json` in the current project, and `~/.cursor/mcp.json` and
 `.cursor/mcp.json`. It never changes those files.
+
+Setup and uninstall act on your user installation only. A copy installed for a
+single project is left in place; setup names it and the command that removes it.
+
+`doctor` lists every location it checked (your user settings, the project root
+and the current directory, and each client's plugin registrations) as found,
+not found or conflicting, before it reports any error. For Claude Code it lists
+each In Parallel copy with its scope, the project it belongs to and its files,
+such as the setup copy for your user and one installed in another project. A
+conflicting entry says what it conflicts with and why, and a legacy entry named
+`in-parallel` comes with how to fix it. Changed installed files are named; when
+an installed `.mcp.json` gained an `Authorization` header, `doctor` says a
+credential header was added without printing it. It always shows the endpoint
+setup installed, even when a check fails. Without a setup copy, `doctor` lists
+any project copy setup did not install, says it can stay, and gives the command
+that removes it. It checks what is installed, not that it works: to check that,
+ask your agent "Check my In Parallel connection". `doctor` changes nothing.
 
 ### Uninstall
 
@@ -97,60 +112,11 @@ If you used the setup command, run:
 npx -y github:in-parallel-oy/agent-plugin uninstall
 ```
 
-If you installed from a plugin browser, remove **In Parallel** there. If you
-used the experimental work journal, also delete `~/.in-parallel` to remove its
-local cache.
+It removes only the files and registrations setup itself wrote, prints one
+line for each, and first backs the files up to `~/.in-parallel/setup/backups/`.
+It stops without removing a file that changed since setup wrote it.
 
-## Experimental features
-
-Features the In Parallel server has not yet enabled for every team live in
-`experimental/`. Plugin browsers never install them. The setup command adds them
-only when you choose the Development environment or a custom server, never for
-Production.
-
-### Work journal (`experimental/work-claims`)
-
-Adds the `in-parallel-work` skill and two hook scripts. The skill asks your
-assistant to report the tasks it works on without being asked each time: a
-short title, a one to three sentence description, progress notes, and links
-such as the repository or pull request URL.
-
-In Claude Code and Codex, `scripts/context.js` runs when a session starts,
-when you send a message, and when a subagent starts. `scripts/remember-claim.js`
-runs after your assistant calls the In Parallel `announce_work`, `get_work` or
-`link_work_subject` tools.
-
-In Cursor, `scripts/context.js` runs when a session starts and after shell, file
-write, file delete, task and MCP tool calls. `scripts/remember-claim.js` runs
-after each MCP tool call and ignores every server except In Parallel.
-
-Each hook has a 10-second limit and never blocks your session. Neither script
-connects to In Parallel.
-
-`context.js`:
-
-- reads the checkout's `origin` remote URL and current branch with `git`.
-  Any user name or password in the remote URL is dropped.
-- asks GitHub for a pull request on the current branch, if the GitHub CLI `gh`
-  is installed. `gh` uses your existing GitHub sign-in.
-- reads the local cache described below, and the MCP URL from the plugin's own
-  `.mcp.json` or `mcp.json`.
-- adds one line of context to the conversation: the repository URL, branch,
-  pull request URL, In Parallel server URL, a session ID, a workspace hint, and
-  the titles and status of this session's open work entries.
-- writes a small marker in `~/.in-parallel/sessions/` so the line is only
-  repeated when something changes, and notes the time in the local cache.
-  Markers older than seven days are deleted.
-
-`remember-claim.js` reads the In Parallel tool's reply and saves a handle for
-your own work entries in `~/.in-parallel/contributions.json`: the entry ID,
-version, status, title, latest update note, workspace ID, linked outcome ID,
-start time and the folder you were working in. Finished or cancelled entries
-keep only their ID, version, status and server. It also records when context,
-reads and reports last happened, so `doctor` can check the setup.
-
-The folder is readable only by you. The scripts send none of it anywhere; the
-titles and workspace hint appear in the context line above.
+If you installed from a plugin browser, remove **In Parallel** there.
 
 ## Need help?
 
@@ -217,7 +183,7 @@ manifest, and commits the change.
 
 Plugin directories and marketplaces install `plugins/in-parallel/` only: the skill, the MCP
 connection, each client's manifest, `LICENSE` and `NOTICE`. The setup command,
-its `package.json` and lockfile, `experimental/` and the build scripts stay at
+its `package.json` and lockfile and the build scripts stay at
 the repository root, outside the installed plugin. Keep `plugins/in-parallel/LICENSE` and
 `plugins/in-parallel/NOTICE` identical to the root copies; the tests check this.
 

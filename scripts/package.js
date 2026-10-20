@@ -8,6 +8,7 @@ const { zipSync } = require('fflate')
 const setup = require('./setup-lib')
 
 const CLIENTS = ['claude', 'claude-projects', 'codex', 'chatgpt-desktop', 'chatgpt-web']
+const packageVersion = source => JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
 
 function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
   if (!CLIENTS.includes(client)) throw new Error(`Choose a client: ${CLIENTS.join(', ')}.`)
@@ -29,38 +30,26 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     throw new Error('Claude Chat/Cowork connects from the cloud. Use a publicly reachable HTTPS MCP URL; use interactive setup for local Claude Code.')
   }
   const agent = setup.AGENTS.find(agent => agent.id === (client.startsWith('claude') ? 'claude' : 'codex'))
-  const prepared = setup.bundle(agent, url, source)
-  const prefix = 'plugins/in-parallel/'
-  const files = Object.fromEntries(Object.entries(prepared.files)
-    .filter(([name]) => name.startsWith(prefix))
-    .map(([name, content]) => [name.slice(prefix.length), Buffer.from(content)]))
-  if (cloud) {
-    for (const name of Object.keys(files)) {
-      if (name.startsWith('hooks/') || name.startsWith('scripts/') || ['.mcp.json', 'mcp.json'].includes(name)) delete files[name]
-    }
-    const manifest = JSON.parse(files['.codex-plugin/plugin.json'])
-    delete manifest.hooks
+  // ChatGPT runs no plugin hooks, and Claude Project threads none either.
+  const files = Object.fromEntries(Object.entries(setup.pluginFiles(agent, url, { hooks: !client.startsWith('chatgpt') && !projects, source }))
+    .map(([name, content]) => [name, Buffer.from(content)]))
+  if (cloud || projects) {
+    // Claude Project threads get MCP tools from the claude.ai connector, and
+    // ChatGPT web from the OpenAI dashboard, so a plugin server would duplicate it.
+    for (const name of ['.mcp.json', 'mcp.json']) delete files[name]
+    const manifestPath = `.${agent.id}-plugin/plugin.json`
+    const manifest = JSON.parse(files[manifestPath])
     delete manifest.mcpServers
-    delete manifest.apps
-    // OpenAI rejects .app.json and any declared MCP server for a plugin that
-    // was created through its legacy form; the connection is managed in the
-    // OpenAI dashboard. The manifest name must match that existing plugin:
-    // `app-<id without asdk_app_>`. Other ID formats fall back to the ID itself.
-    manifest.name = appId.startsWith('asdk_app_') ? `app-${appId.slice('asdk_app_'.length)}` : appId
-    manifest.version = JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
-    files['.codex-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
-  }
-  if (projects) {
-    // Project threads are cloud sessions that get MCP tools from the claude.ai
-    // connector, so a plugin server would duplicate it. Ship skills only.
-    for (const name of Object.keys(files)) {
-      if (/^(hooks|scripts)\//.test(name) || ['.mcp.json', 'mcp.json'].includes(name)) delete files[name]
+    if (cloud) {
+      delete manifest.apps
+      // OpenAI rejects .app.json and any declared MCP server for a plugin that
+      // was created through its legacy form; the connection is managed in the
+      // OpenAI dashboard. The manifest name must match that existing plugin:
+      // `app-<id without asdk_app_>`. Other ID formats fall back to the ID itself.
+      manifest.name = appId.startsWith('asdk_app_') ? `app-${appId.slice('asdk_app_'.length)}` : appId
     }
-    const manifest = JSON.parse(files['.claude-plugin/plugin.json'])
-    delete manifest.hooks
-    delete manifest.mcpServers
-    manifest.version = JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version
-    files['.claude-plugin/plugin.json'] = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
+    manifest.version = packageVersion(source)
+    files[manifestPath] = Buffer.from(setup.json(manifest))
   }
   return files
 }
@@ -75,8 +64,7 @@ function main(args = process.argv.slice(2)) {
     return
   }
   const files = packageFiles(values.client, { url: values.url, appId: values['app-id'] })
-  const version = JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'package.json'))).version
-  const output = path.resolve(values.output || `dist/in-parallel-${values.client}-${version}.zip`)
+  const output = path.resolve(values.output || `dist/in-parallel-${values.client}-${packageVersion(setup.SOURCE)}.zip`)
   fs.mkdirSync(path.dirname(output), { recursive: true })
   fs.writeFileSync(output, zipSync(files), { flag: 'wx', mode: 0o600 })
   const next = values.client === 'claude'

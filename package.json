@@ -12,7 +12,8 @@
   },
   "files": [
     "scripts/*.js",
-    "plugin",
+    "!scripts/e2e-bundle.js",
+    "plugins",
     "experimental",
     "README.md",
     "LICENSE",
