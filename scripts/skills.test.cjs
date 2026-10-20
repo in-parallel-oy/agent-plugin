@@ -49,3 +49,13 @@ for (const [file, { headings = [], steps = [], names = [], order = [] }] of Obje
     }
   })
 }
+
+// Claude Code escapes angle brackets in a skill description, so the model reads
+// &lt;path&gt;, and truncates a description past 1,536 characters.
+test('skill descriptions use no angle brackets and fit the description cap', () => {
+  for (const file of Object.keys(STRUCTURE)) {
+    const [, description] = read(file).match(/^description: (.*)$/m)
+    assert.doesNotMatch(description, /[<>]/, file)
+    assert.ok(description.length <= 1536, file)
+  }
+})
