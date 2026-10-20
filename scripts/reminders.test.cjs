@@ -154,6 +154,24 @@ test('only In Parallel report_back calls, item closes and item reads are tagged'
   assert.equal(group.matcher, TAGGED.source)
 })
 
+test('with mcp_server, only the plugin\'s own server or one configured on its own is tagged', () => {
+  const PLUGIN = { name: 'plugin:in-parallel:in_parallel', source: 'plugin' }
+  assert.ok(respond(preToolUse({ mcp_server: PLUGIN })))
+  for (const source of ['user', 'project', 'local']) assert.ok(respond(preToolUse({ tool_name: 'mcp__in_parallel__report_back', mcp_server: { name: 'in_parallel', source } })), source)
+  for (const [tool_name, mcp_server] of [
+    // A server configured under the plugin's name, or a copy of the plugin's server from a configuration scope.
+    [SERVER_TOOL, { name: 'plugin:in-parallel:in_parallel', source: 'user' }],
+    [SERVER_TOOL, { name: 'plugin:other:in_parallel', source: 'plugin' }],
+    // Another plugin's server that its tool names spell in_parallel, or one from claude.ai, an SDK host or an unknown source.
+    ['mcp__in_parallel__report_back', { name: 'plugin:other:in_parallel', source: 'plugin' }],
+    ['mcp__in_parallel__report_back', { name: 'in_parallel', source: 'claudeai' }],
+    ['mcp__in_parallel__report_back', { name: 'in_parallel', source: 'sdk' }],
+    ['mcp__in_parallel__report_back', { name: 'in_parallel', source: 'dynamic' }],
+    ['mcp__in_parallel__report_back', { name: 'other', source: 'user' }],
+    [SERVER_TOOL, null],
+  ]) assert.equal(respond(preToolUse({ tool_name, mcp_server })), null, `${tool_name} ${JSON.stringify(mcp_server)}`)
+})
+
 test('report_back without a session id or arguments is left as sent', () => {
   assert.equal(respond(preToolUse({ session_id: '' })), null)
   assert.equal(respond(preToolUse({ session_id: undefined })), null)

@@ -30,12 +30,19 @@ const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/p
 // Only these commands are checked for a pull request link: what lists or logs pull requests is not new work.
 const PR_COMMAND = /\bgh\s+pr\s+(create|view)\b/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
-// The In Parallel tools that take client_session, on the plugin's own server or
-// one configured on its own; the Claude Code hook matcher too.
-const TAGGED = /^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__(report_back|close_action_items|update_action_item|get_action_item|get_decision|get_risk|get_open_question|get_observations)$/
-const REPORT_BACK = /^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$/
+// In Parallel's server as tool names spell it: the plugin's own, or one configured
+// on its own. Claude Code names the plugin's server plugin:in-parallel:in_parallel.
+const PLUGIN_SERVER = { tool: 'plugin_in-parallel_in_parallel', name: 'plugin:in-parallel:in_parallel' }
+const OWN_SERVERS = ['in_parallel', 'in-parallel']
+const SERVER = `(${[PLUGIN_SERVER.tool, ...OWN_SERVERS].join('|')})`
+// The In Parallel tools that take client_session; TAGGED is the Claude Code hook matcher too.
+const TAGGED_TOOLS = ['report_back', 'close_action_items', 'update_action_item', 'get_action_item', 'get_decision', 'get_risk', 'get_open_question', 'get_observations']
+const TAGGED = new RegExp(`^mcp__${SERVER}__(${TAGGED_TOOLS.join('|')})$`)
+const REPORT_BACK = new RegExp(`^mcp__${SERVER}__report_back$`)
+// The configuration scopes Claude Code reports as a server's source, besides plugin.
+const CONFIGURED = ['local', 'user', 'project', 'enterprise', 'managed']
 // A report_back call inside a Codex code mode script.
-const SCRIPTED_REPORT_BACK = /\btools\.mcp__(in_parallel|in-parallel)__report_back\s*\(/
+const SCRIPTED_REPORT_BACK = new RegExp(`\\btools\\.mcp__(${OWN_SERVERS.join('|')})__report_back\\s*\\(`)
 const SCRIPTED_STARTED = /\bevent\s*:\s*["'`]started["'`]/
 // The newest part of the transcript is enough to tell whether In Parallel work is in it.
 const TAIL = 4 * 1024 * 1024
@@ -113,8 +120,19 @@ function context(event, text) {
   return { hookSpecificOutput: { hookEventName: event, additionalContext: text } }
 }
 
+// Whether Claude Code's mcp_server (2.1.274 and later) is the server the tool name
+// names: the plugin's own from the plugin, or one configured on its own from a
+// configuration scope. A claude.ai connector or an SDK server is neither.
+function inParallelServer(segment, server) {
+  if (server === undefined) return true
+  if (!server || typeof server !== 'object') return false
+  if (segment === PLUGIN_SERVER.tool) return server.source === 'plugin' && server.name === PLUGIN_SERVER.name
+  return CONFIGURED.includes(server.source) && server.name === segment
+}
+
 function tagSession(input) {
-  if (typeof input.tool_name !== 'string' || !TAGGED.test(input.tool_name)) return null
+  const [, segment] = (typeof input.tool_name === 'string' && input.tool_name.match(TAGGED)) || []
+  if (!segment || !inParallelServer(segment, input.mcp_server)) return null
   const args = input.tool_input
   if (!args || typeof args !== 'object' || Array.isArray(args)) return null
   if (typeof input.session_id !== 'string' || !input.session_id) return null

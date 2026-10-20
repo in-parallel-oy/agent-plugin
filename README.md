@@ -154,7 +154,9 @@ when your message carries an In Parallel link, and after `gh pr create` or
 reminds it to pass the pull request in `results`. In Claude Code it also adds the conversation's
 session id as `client_session` to In Parallel's `report_back`, item close and
 item read calls, so reminders, closes and reads are scoped to this
-conversation; Codex names its conversation thread itself. The script reads only
+conversation; Codex names its conversation thread itself. In Parallel
+connected through claude.ai is not tagged, so disable that connector in Claude
+Code's `/mcp` to keep reminders per conversation. The script reads only
 what your assistant passes it and, after a pull request, the newest part of the
 session's local transcript. It never reads your sign-in, connects to In
 Parallel or anything else, or writes files.
