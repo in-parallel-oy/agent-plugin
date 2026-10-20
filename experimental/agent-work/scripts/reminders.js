@@ -29,7 +29,7 @@ const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 // A fenced code block, closed or running to the end: a link in one is quoted, as in
 // a pasted diff or log, not sent.
 const FENCED = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm
-const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
+const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+(?!\d)/g
 // Only these commands are checked for a pull request link: what lists or logs pull requests is not new work.
 const PR_COMMAND = /\bgh\s+pr\s+(create|view)\b/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
@@ -89,7 +89,7 @@ function toolCalls(line) {
   return []
 }
 
-// In Parallel report_back calls, each with whether it reported "started".
+// In Parallel report_back calls, each with whether it reported "started" and the pull requests it passed.
 function reports(line) {
   return toolCalls(line).flatMap(call => {
     if (typeof call.script === 'string') {
@@ -97,7 +97,7 @@ function reports(line) {
     }
     if (!REPORT_BACK.test(call.name) || !call.input || typeof call.input !== 'object') return []
     return [{ started: call.input.event === 'started', text: JSON.stringify(call.input) }]
-  })
+  }).map(({ started, text }) => ({ started, pullRequests: text.match(PULL_REQUEST) || [] }))
 }
 
 // Whether this conversation reported an In Parallel item started, and has not yet
@@ -106,7 +106,7 @@ function pullRequestNeedsReport(transcript, url) {
   let started = false
   for (const line of transcript.split('\n')) {
     for (const report of reports(line)) {
-      if (url && report.text.includes(url)) return false
+      if (url && report.pullRequests.includes(url)) return false
       started ||= report.started
     }
   }

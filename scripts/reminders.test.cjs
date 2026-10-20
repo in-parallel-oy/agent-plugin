@@ -89,6 +89,13 @@ test('pull request reminders stay quiet without a started report or once the lin
   assert.ok(shell(transcript(t, [prompt(`${SEND}\n${PR}`), report('started')]), 'gh pr view', PR))
   // Another pull request in the same session still gets its reminder.
   assert.ok(shell(transcript(t, [prompt(SEND), report('started'), report('note', { results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', 'https://github.com/acme/website/pull/43'))
+  // A reported link that starts with this one is another pull request.
+  for (const reported of [report('note', { results: [{ label: 'Pull request', url: `${PR}1` }] }),
+    codexScript(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${PR}1" }] })`)]) {
+    assert.ok(shell(transcript(t, [prompt(SEND), report('started'), reported]), 'gh pr view 42', PR))
+  }
+  // A reported link to a page of this pull request is this one.
+  assert.equal(shell(transcript(t, [prompt(SEND), report('started'), report('note', { results: [{ label: 'Pull request', url: `${PR}/files` }] })]), 'gh pr view', PR), null)
   // The work-on command starts by id, without a link in the prompt.
   assert.ok(shell(transcript(t, [prompt('/in-parallel:work-on'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })]), 'gh pr create --fill', PR))
   const sent = transcript(t, [prompt(SEND), report('started')])
