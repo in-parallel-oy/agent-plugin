@@ -241,9 +241,11 @@ test('only the Development environment and localhost add experimental features, 
         assert.deepEqual(extra, [])
         continue
       }
-      assert.equal(manifest.hooks, `./hooks/${agent.id}.json`)
-      assert.deepEqual(extra, [`${prefix}hooks/${agent.id}.json`, `${prefix}scripts/reminders.js`])
-      const hooks = JSON.parse(dev.files[`${prefix}hooks/${agent.id}.json`]).hooks
+      // The default hooks path, which each client reads on its own; each gets only its own file.
+      assert.equal(manifest.hooks, undefined)
+      assert.deepEqual(extra, [`${prefix}hooks/hooks.json`, `${prefix}scripts/reminders.js`])
+      assert.deepEqual(dev.files[`${prefix}hooks/hooks.json`], fs.readFileSync(path.join(setup.SOURCE, 'experimental', 'agent-work', 'hooks', `${agent.id}.json`)))
+      const hooks = JSON.parse(dev.files[`${prefix}hooks/hooks.json`]).hooks
       const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
       // Only the main agent's Stop is hooked: no SubagentStop and no SessionStart.
       // Claude Code also tags report_back with its session id; Codex names its thread itself.
@@ -308,9 +310,9 @@ for (const agent of setup.AGENTS) {
     const hooks = agent.id !== 'cursor'
     for (const skill of SKILLS) assert.ok(fs.existsSync(path.join(plugin, 'skills', skill, 'SKILL.md')), skill)
     assert.equal(fs.existsSync(path.join(plugin, 'scripts', 'reminders.js')), hooks)
-    assert.equal(fs.existsSync(path.join(plugin, 'hooks', `${agent.id}.json`)), hooks)
+    assert.equal(fs.existsSync(path.join(plugin, 'hooks', 'hooks.json')), hooks)
     if (hooks) {
-      const installed = JSON.parse(fs.readFileSync(path.join(plugin, 'hooks', `${agent.id}.json`), 'utf8')).hooks
+      const installed = JSON.parse(fs.readFileSync(path.join(plugin, 'hooks', 'hooks.json'), 'utf8')).hooks
       assert.deepEqual(installed, JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'experimental', 'agent-work', 'hooks', `${agent.id}.json`), 'utf8')).hooks)
       assert.deepEqual(installed.Stop.flatMap(group => group.hooks).map(hook => [hook.type, hook.tool]), [['mcp_tool', 'report_back_reminder']])
     }

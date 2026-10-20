@@ -17,7 +17,8 @@ const plugin = source => path.join(source, 'plugins', 'in-parallel')
 const PRODUCTION = JSON.parse(fs.readFileSync(path.join(plugin(SOURCE), 'mcp.json'), 'utf8')).mcpServers.in_parallel.url
 // Features the server still gates per company. Store listings ship without
 // them; setup adds each experimental/<feature> folder for the Development environment only:
-// its skills, and its hooks/<agent>.json with its scripts where that client has hooks.
+// its skills, and its hooks/<agent>.json, as that client's hooks/hooks.json, with its
+// scripts where that client has hooks.
 const EXPERIMENTAL = ['agent-work']
 // The hosts a local server answers on. HTTP is allowed only for these.
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
@@ -200,9 +201,10 @@ function pluginFiles(agent, url, { hooks = true, source = SOURCE } = {}) {
     for (const [name, content] of Object.entries(tree(path.join(root, 'skills')))) files[`skills/${name}`] = content
     const hookFile = path.join(root, 'hooks', `${agent.id}.json`)
     if (root === plugin(source) || !hooks || !fs.existsSync(hookFile)) continue
-    if (manifest.hooks) throw new Error(`Only one experimental feature can add ${agent.name} hooks.`)
-    manifest.hooks = `./hooks/${agent.id}.json`
-    files[`hooks/${agent.id}.json`] = fs.readFileSync(hookFile)
+    // The default hooks path, not a manifest key: Claude Code runs the hooks of only
+    // one same-name plugin copy from it, and Codex reads it when the manifest names none.
+    if (files['hooks/hooks.json']) throw new Error(`Only one experimental feature can add ${agent.name} hooks.`)
+    files['hooks/hooks.json'] = fs.readFileSync(hookFile)
     for (const [name, content] of Object.entries(tree(path.join(root, 'scripts')))) files[`scripts/${name}`] = content
   }
   for (const name of ['LICENSE', 'NOTICE']) files[name] = fs.readFileSync(path.join(plugin(source), name))
@@ -231,7 +233,7 @@ function bundle(agent, url, source = SOURCE) {
   if (agent.id === 'claude') {
     files['.claude-plugin/marketplace.json'] = json({
       name: MARKETPLACE, owner: { name: 'In Parallel' },
-      metadata: { description: `In Parallel skills${manifest.hooks ? ', hooks' : ''} and MCP configured by interactive setup.` },
+      metadata: { description: `In Parallel skills${loaded['hooks/hooks.json'] ? ', hooks' : ''} and MCP configured by interactive setup.` },
       plugins: [{ name: 'in-parallel', source: './plugins/in-parallel', version: manifest.version, description: manifest.description }],
     })
   } else if (agent.id === 'codex') {

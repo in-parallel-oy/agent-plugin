@@ -19,15 +19,16 @@ for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
       const dev = url === DEVELOPMENT
       // ChatGPT runs no plugin hooks, so its packages never carry them.
       const hooks = dev && client !== 'chatgpt-desktop'
-      assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, hooks ? `./hooks/${kind}.json` : undefined)
+      // Hooks load from the default hooks/hooks.json, never through the manifest.
+      assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, undefined)
       assert.equal(Boolean(files['skills/in-parallel-agent-work/SKILL.md']), dev)
       assert.equal(Boolean(files['skills/work-on/SKILL.md']), dev)
-      assert.equal(Boolean(files[`hooks/${kind}.json`]), hooks)
+      assert.deepEqual(files['hooks/hooks.json'], hooks ? fs.readFileSync(path.join(source, 'experimental', 'agent-work', 'hooks', `${kind}.json`)) : undefined)
       assert.equal(Boolean(files['scripts/reminders.js']), hooks)
       assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(plugin, 'LICENSE')))
       assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(plugin, 'NOTICE')))
       for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, url)
-      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/(claude|codex)\.json$|scripts\/reminders\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
+      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/hooks\.json$|scripts\/reminders\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
       assert.equal(files['plugin.json'], undefined)
     }
   })
