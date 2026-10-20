@@ -12,9 +12,10 @@ const { execFileSync } = require('node:child_process')
 
 const source = path.resolve(__dirname, '..')
 const RECORD = path.join(__dirname, 'plugin-content.json')
-// Everything a client installs is what the package ships, less the setup tool
-// (scripts/*.js) and the README: skills, hooks and their scripts, connection and manifests.
-const CONTENT = require('../package.json').files.filter(entry => !entry.startsWith('scripts/') && !entry.startsWith('!') && entry !== 'README.md')
+// Everything a store client installs is what the package ships, less the setup
+// tool (scripts/*.js), the README and the experimental features, which setup
+// installs from this checkout and never reach the store.
+const CONTENT = require('../package.json').files.filter(entry => !entry.startsWith('scripts/') && !entry.startsWith('!') && entry !== 'README.md' && entry !== 'experimental')
 
 // Tracked and new files only: git-ignored noise such as .DS_Store is not content.
 function files() {
