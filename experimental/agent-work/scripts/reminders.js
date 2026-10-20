@@ -17,7 +17,9 @@
 // normal rules.
 //
 // Reads only the hook input on stdin and, after a pull request, the newest part of
-// the local session transcript it names.
+// the local session transcript it names: Claude Code's session JSONL or Codex's
+// rollout. A session without one, such as an ephemeral Codex session, gets no pull
+// request reminder.
 // Never reads credentials or settings, never connects to anything, never writes
 // files, and always exits 0 so a reminder can never break a session.
 
@@ -25,10 +27,16 @@ const fs = require('node:fs')
 
 const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
+// Only these commands are checked for a pull request link: what lists or logs pull requests is not new work.
+const PR_COMMAND = /\bgh\s+pr\s+(create|view)\b/
 const CREATE_PR = /\bgh\s+pr\s+create\b/
 // The In Parallel tools that take client_session, on the plugin's own server or
 // one configured on its own; the Claude Code hook matcher too.
 const TAGGED = /^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__(report_back|close_action_items|update_action_item|get_action_item|get_decision|get_risk|get_open_question|get_observations)$/
+const REPORT_BACK = /^mcp__(plugin_in-parallel_in_parallel|in_parallel|in-parallel)__report_back$/
+// A report_back call inside a Codex code mode script.
+const SCRIPTED_REPORT_BACK = /\btools\.mcp__(in_parallel|in-parallel)__report_back\s*\(/
+const SCRIPTED_STARTED = /\bevent\s*:\s*["'`]started["'`]/
 // The newest part of the transcript is enough to tell whether In Parallel work is in it.
 const TAIL = 4 * 1024 * 1024
 
@@ -48,11 +56,51 @@ function readTail(file) {
   }
 }
 
-// Whether the session works with In Parallel items, and whether this pull request
-// was already passed to report_back.
+// The tool calls one transcript line records: Claude Code's tool_use blocks, and
+// Codex's function calls and code mode scripts. Anything else on the line, such as
+// a skill listing or a prompt quoting a tool name, is not a call.
+function toolCalls(line) {
+  let entry
+  try { entry = JSON.parse(line) } catch { return [] }
+  if (entry?.type === 'assistant' && Array.isArray(entry.message?.content)) {
+    return entry.message.content.filter(block => block?.type === 'tool_use' && typeof block.name === 'string')
+      .map(block => ({ name: block.name, input: block.input }))
+  }
+  const item = entry?.type === 'response_item' ? entry.payload : null
+  if (item?.type === 'function_call' && typeof item.name === 'string') {
+    // Codex records an MCP tool as its bare name in an mcp__<server>__ namespace.
+    const name = item.namespace && !item.name.startsWith('mcp__')
+      ? `${item.namespace.replace(/_+$/, '')}__${item.name.replace(/^_+/, '')}` : item.name
+    let input = null
+    try { input = JSON.parse(item.arguments) } catch {}
+    return [{ name, input }]
+  }
+  if (item?.type === 'custom_tool_call' && typeof item.input === 'string') return [{ name: item.name, script: item.input }]
+  return []
+}
+
+// In Parallel report_back calls, each with whether it reported "started".
+function reports(line) {
+  return toolCalls(line).flatMap(call => {
+    if (typeof call.script === 'string') {
+      return SCRIPTED_REPORT_BACK.test(call.script) ? [{ started: SCRIPTED_STARTED.test(call.script), text: call.script }] : []
+    }
+    if (!REPORT_BACK.test(call.name) || !call.input || typeof call.input !== 'object') return []
+    return [{ started: call.input.event === 'started', text: JSON.stringify(call.input) }]
+  })
+}
+
+// Whether this conversation reported an In Parallel item started, and has not yet
+// passed this pull request to report_back.
 function pullRequestNeedsReport(transcript, url) {
-  if (!transcript.includes('in-parallel://') && !transcript.includes('report_back')) return false
-  return !url || !transcript.split('\n').some(line => line.includes('report_back') && line.includes(url))
+  let started = false
+  for (const line of transcript.split('\n')) {
+    for (const report of reports(line)) {
+      if (url && report.text.includes(url)) return false
+      started ||= report.started
+    }
+  }
+  return started
 }
 
 function commandText(input) {
@@ -87,7 +135,7 @@ function respond(input) {
   }
   if (event === 'PostToolUse') {
     const command = commandText(input.tool_input)
-    if (!command) return null
+    if (!PR_COMMAND.test(command)) return null
     const url = (JSON.stringify(input.tool_response ?? '').match(PULL_REQUEST) || [])[0]
     if (!url && !CREATE_PR.test(command)) return null
     if (!pullRequestNeedsReport(readTail(input.transcript_path), url)) return null

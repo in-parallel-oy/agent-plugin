@@ -19,7 +19,7 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/reminders.js\"", "timeout": 10 }
+          { "type": "command", "if": "Bash(gh pr *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/reminders.js\"", "timeout": 10 }
         ]
       }
     ],

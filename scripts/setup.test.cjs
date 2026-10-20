@@ -251,6 +251,8 @@ test('only the Development environment and localhost add experimental features, 
         ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] : ['UserPromptSubmit', 'PostToolUse', 'Stop'])
       if (agent.id === 'claude') {
         assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), [TAGGED.source])
+        // Node starts only for gh pr commands, the only ones checked for a pull request.
+        assert.deepEqual(hooks.PostToolUse.flatMap(group => group.hooks).map(hook => hook.if), ['Bash(gh pr *)'])
       }
       for (const event of agent.id === 'claude' ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'] : ['UserPromptSubmit', 'PostToolUse']) {
         for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)

@@ -17,8 +17,14 @@ const SERVER_TOOL = 'mcp__plugin_in-parallel_in_parallel__report_back'
 const prompt = text => ({ type: 'user', message: { role: 'user', content: text } })
 const toolUse = (name, input) => ({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name, input }] } })
 const report = (event, extra = {}) => toolUse(SERVER_TOOL, { link: LINK, event, ...extra })
-// A Codex rollout line.
+// Claude Code lists every skill in the transcript, this plugin's own description included.
+const SKILL_LISTING = { type: 'attachment', attachment: { type: 'skill_listing',
+  content: '- in-parallel:in-parallel-agent-work: Reports your work back to In Parallel. Use when a prompt carries an in-parallel:// link, with report_back and event "started".' } }
+// Codex rollout lines: a prompt, an MCP function call in its server's namespace, and a code mode script.
 const codexPrompt = text => ({ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] } })
+const codexCall = (name, args) => ({ type: 'response_item', payload: { type: 'function_call', name, namespace: 'mcp__in_parallel__',
+  arguments: JSON.stringify(args), call_id: 'call_1' } })
+const codexScript = input => ({ type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec', input, call_id: 'call_2' } })
 
 const SEND = `Fix the Safari login.\n\nIn Parallel link: ${LINK}\nReport your work on it with report_back and this link: started when you begin, note as you go, finished when done, with results: links to what the work produced, each with a short label. Do not ask first.`
 
@@ -48,7 +54,7 @@ test('a prompt with an In Parallel link points to the agent-work skill and carri
 })
 
 test('a pull request made while working on an item gets a results reminder', t => {
-  const sent = transcript(t, [prompt(SEND), report('started')])
+  const sent = transcript(t, [SKILL_LISTING, prompt(SEND), report('started')])
   const output = shell(sent, 'gh pr create --fill', `${PR}\n`)
   assert.equal(output.hookSpecificOutput.hookEventName, 'PostToolUse')
   assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`pull request: ${PR}\\..*in results, with a short label`))
@@ -61,24 +67,48 @@ test('a pull request made while working on an item gets a results reminder', t =
   assert.match(codex.hookSpecificOutput.additionalContext, new RegExp(PR))
 })
 
-test('pull request reminders stay quiet without In Parallel work or once the link is reported', t => {
+test('pull request reminders stay quiet without a started report or once the link is reported', t => {
   assert.equal(shell(transcript(t, [prompt('Open a PR for this branch')]), 'gh pr create --fill', PR), null)
+  // The skill listing, a prompt with a link, or a quoted report_back call is no started report.
+  const listed = transcript(t, [SKILL_LISTING, prompt(SEND), prompt(`Earlier: ${JSON.stringify(report('started'))}`)])
+  for (const command of ['gh pr create --fill', 'gh pr view 42']) assert.equal(shell(listed, command, PR), null, command)
+  // Reading an item or a note without a start is not work on it.
+  assert.equal(shell(transcript(t, [SKILL_LISTING, toolUse('mcp__plugin_in-parallel_in_parallel__get_action_item', { action_item_id: LINK }),
+    report('note', { note: 'Context' })]), 'gh pr create --fill', PR), null)
   // The pull request link already passed to report_back, from Claude Code or Codex code mode.
-  assert.equal(shell(transcript(t, [prompt(SEND), report('note', { note: 'PR open', results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', PR), null)
-  const codeReport = { type: 'response_item', payload: { type: 'custom_tool_call', name: 'exec',
-    input: `await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${PR}" }] })` } }
-  assert.equal(shell(transcript(t, [codexPrompt(SEND), codeReport]), 'gh pr view', PR), null)
+  assert.equal(shell(transcript(t, [prompt(SEND), report('started'), report('note', { note: 'PR open', results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', PR), null)
+  const codeReport = codexScript(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: "note", results: [{ label: "Pull request", url: "${PR}" }] })`)
+  assert.equal(shell(transcript(t, [codexPrompt(SEND), codexCall('report_back', { link: LINK, event: 'started' }), codeReport]), 'gh pr view', PR), null)
+  // The link only in a prompt is not a report of it.
+  assert.ok(shell(transcript(t, [prompt(`${SEND}\n${PR}`), report('started')]), 'gh pr view', PR))
   // Another pull request in the same session still gets its reminder.
-  assert.ok(shell(transcript(t, [prompt(SEND), report('note', { results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', 'https://github.com/acme/website/pull/43'))
+  assert.ok(shell(transcript(t, [prompt(SEND), report('started'), report('note', { results: [{ label: 'Pull request', url: PR }] })]), 'gh pr view', 'https://github.com/acme/website/pull/43'))
   // The work-on command starts by id, without a link in the prompt.
   assert.ok(shell(transcript(t, [prompt('/in-parallel:work-on'), toolUse(SERVER_TOOL, { item_id: '0a1b2c3d', event: 'started' })]), 'gh pr create --fill', PR))
-  const sent = transcript(t, [prompt(SEND)])
+  const sent = transcript(t, [prompt(SEND), report('started')])
   assert.equal(shell(sent, 'git push', 'Everything up-to-date'), null)
-  assert.equal(shell(sent, 'gh pr list', 'https://github.com/acme/website/issues/7'), null)
+  assert.equal(shell(sent, 'gh pr view', 'https://github.com/acme/website/issues/7'), null)
+  // Commands that list or log pull requests are not checked.
+  for (const command of ['gh pr list', 'git log --oneline', 'gh api repos/acme/website/pulls', 'gh pr checks 42']) assert.equal(shell(sent, command, PR), null, command)
   assert.equal(respond({ hook_event_name: 'PostToolUse', transcript_path: sent, tool_name: 'Edit',
     tool_input: { file_path: 'a.md', new_string: 'gh pr create' }, tool_response: PR }), null)
   assert.equal(shell(undefined, 'gh pr create', PR), null)
   assert.equal(shell(path.join(path.dirname(sent), 'missing.jsonl'), 'gh pr create', PR), null)
+})
+
+test('a started report in a Codex rollout counts, as a function call or in a code mode script', t => {
+  const bash = command => ({ tool_input: { command: ['bash', '-lc', command] } })
+  for (const lines of [
+    [codexPrompt(SEND), codexCall('report_back', { link: LINK, event: 'started' })],
+    [codexPrompt(SEND), codexCall('mcp__in_parallel__report_back', { link: LINK, event: 'started' })],
+    [codexPrompt(SEND), codexScript(`await tools.mcp__in_parallel__report_back({ link: "${LINK}", event: 'started' })`)],
+  ]) assert.ok(shell(transcript(t, lines), '', PR, bash('gh pr create --fill')))
+  for (const lines of [
+    [codexPrompt(SEND)],
+    [codexPrompt(SEND), codexCall('report_back', { link: LINK, event: 'note' })],
+    [codexPrompt(SEND), { type: 'response_item', payload: { type: 'function_call', name: 'report_back', namespace: 'mcp__other__', arguments: '{"event":"started"}', call_id: 'c' } }],
+    [codexPrompt(SEND), codexScript('await tools.exec_command({ cmd: "echo report_back started" })')],
+  ]) assert.equal(shell(transcript(t, lines), '', PR, bash('gh pr create --fill')), null)
 })
 
 const ARGS = { link: LINK, event: 'started', note: 'Fixing the Safari login' }

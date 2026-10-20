@@ -149,9 +149,9 @@ To try it, send an In Parallel To do to your assistant with Send to AI, or pick
 one with the `work-on` command.
 
 The hooks run `scripts/reminders.js`, which points your assistant to the skill
-when your message carries an In Parallel link, and after it opens or prints a
-pull request in a session working on an In Parallel item, reminds it to pass
-the pull request in `results`. In Claude Code it also adds the conversation's
+when your message carries an In Parallel link, and after `gh pr create` or
+`gh pr view` in a conversation that reported an In Parallel item started,
+reminds it to pass the pull request in `results`. In Claude Code it also adds the conversation's
 session id as `client_session` to In Parallel's `report_back`, item close and
 item read calls, so reminders, closes and reads are scoped to this
 conversation; Codex names its conversation thread itself. The script reads only
