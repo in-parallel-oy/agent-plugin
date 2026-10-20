@@ -261,7 +261,7 @@ test('only the Development environment and localhost add experimental features, 
       // and, from Claude Code, the conversation's session id.
       assert.deepEqual(hooks.Stop.flatMap(group => group.hooks), [{
         type: 'mcp_tool', server: agent.id === 'claude' ? 'plugin:in-parallel:in_parallel' : 'in_parallel',
-        tool: 'report_back_reminder', timeout: 30,
+        tool: 'report_back_reminder', timeout: 10,
         input: agent.id === 'claude' ? { stop_hook_active: '${stop_hook_active}', client_session: '${session_id}' } : { stop_hook_active: '${stop_hook_active}' },
       }])
       assert.deepEqual(Object.keys(hooks.Stop[0]), ['hooks'])

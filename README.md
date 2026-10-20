@@ -163,7 +163,7 @@ Before your assistant stops, its `Stop` hook asks In Parallel's
 `report_back_reminder` tool, through your assistant's own In Parallel
 connection, whether it has an item it reported started and not yet finished.
 When your company does not have the feature yet, or the hook gets no answer
-within 30 seconds, your assistant stops as usual. When you are signed out, your
+within 10 seconds, your assistant stops as usual. When you are signed out, your
 client may show its own hook-error notice at each stop.
 
 Codex asks you to trust the hooks in `/hooks` first, and again after they
