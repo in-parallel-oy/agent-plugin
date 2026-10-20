@@ -26,6 +26,9 @@
 const fs = require('node:fs')
 
 const LINK = /in-parallel:\/\/[A-Za-z0-9._~%-]+(?:\/[A-Za-z0-9._~%-]+)+/g
+// A fenced code block, closed or running to the end: a link in one is quoted, as in
+// a pasted diff or log, not sent.
+const FENCED = /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*$|(?![\s\S]))/gm
 const PULL_REQUEST = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/
 // Only these commands are checked for a pull request link: what lists or logs pull requests is not new work.
 const PR_COMMAND = /\bgh\s+pr\s+(create|view)\b/
@@ -144,12 +147,12 @@ function respond(input) {
   const event = input.hook_event_name
   if (event === 'PreToolUse') return tagSession(input)
   if (event === 'UserPromptSubmit') {
-    const links = [...new Set(String(input.prompt || '').match(LINK) || [])].slice(0, 3)
+    const links = [...new Set(String(input.prompt || '').replace(FENCED, '').match(LINK) || [])].slice(0, 3)
     if (!links.length) return null
-    return context(event, `This prompt carries the In Parallel link ${links.join(', ')}. Load the in-parallel-agent-work skill and report on it with report_back and that link as the request needs. ` +
-      'Asked only to add a note? Report just that "note", in the person\'s words: no "started" and no "finished". ' +
-      'If you work on this item, report "started" before you begin, and when the work is done, report "finished" with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
-      'Reading it or answering questions about it is not work: do not report. Asked only for a plan? Give it and do not start. Asked to start, then wait for a go-ahead? Report "started", then a "note" with waiting: true. Told not to report (anything else)? Report only what they asked for.')
+    return context(event, `This prompt carries the In Parallel link ${links.join(', ')}. The in-parallel-agent-work skill holds the rules for reporting on it with report_back and that link, as the request needs. ` +
+      'A request only to add a note is reported as just that "note", in the person\'s words, with no "started" and no "finished". ' +
+      'Work on the item is reported "started" before it begins, and "finished" when it is done, with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
+      'Reading the item or answering questions about it is not work and is not reported. A request only for a plan gets the plan, and the work does not start. A request to start and then wait for a go-ahead is reported "started", then a "note" with waiting: true. A request not to report anything else is reported only as asked.')
   }
   if (event === 'PostToolUse') {
     const command = commandText(input.tool_input)
@@ -158,8 +161,8 @@ function respond(input) {
     if (!url && !CREATE_PR.test(command)) return null
     if (!pullRequestNeedsReport(readTail(input.transcript_path), url)) return null
     return context(event, url
-      ? `You have a pull request: ${url}. If it is for the In Parallel item you are working on, pass it in results, with a short label such as "Pull request", when you call report_back.`
-      : 'You ran gh pr create. If it made a pull request for the In Parallel item you are working on, pass its link in results, with a short label such as "Pull request", when you call report_back.')
+      ? `This conversation reported an In Parallel item started, and this command printed the pull request ${url}. A pull request for that item goes in report_back's results, with a short label such as "Pull request".`
+      : 'This conversation reported an In Parallel item started, and gh pr create printed no pull request link. A pull request it made for that item goes in report_back\'s results, with a short label such as "Pull request".')
   }
   return null
 }

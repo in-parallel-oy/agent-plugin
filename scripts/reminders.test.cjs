@@ -41,13 +41,19 @@ test('a prompt with an In Parallel link points to the agent-work skill and carri
   const output = respond({ hook_event_name: 'UserPromptSubmit', prompt: SEND })
   assert.equal(output.hookSpecificOutput.hookEventName, 'UserPromptSubmit')
   assert.equal(output.hookSpecificOutput.additionalContext,
-    `This prompt carries the In Parallel link ${LINK}. Load the in-parallel-agent-work skill and report on it with report_back and that link as the request needs. ` +
-    'Asked only to add a note? Report just that "note", in the person\'s words: no "started" and no "finished". ' +
-    'If you work on this item, report "started" before you begin, and when the work is done, report "finished" with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
-    'Reading it or answering questions about it is not work: do not report. Asked only for a plan? Give it and do not start. Asked to start, then wait for a go-ahead? Report "started", then a "note" with waiting: true. Told not to report (anything else)? Report only what they asked for.')
-  for (const text of ['Fix the Safari login', 'see in-parallel:// for details', 'https://www.in-parallel.ai/acme/action-items/1', '']) {
+    `This prompt carries the In Parallel link ${LINK}. The in-parallel-agent-work skill holds the rules for reporting on it with report_back and that link, as the request needs. ` +
+    'A request only to add a note is reported as just that "note", in the person\'s words, with no "started" and no "finished". ' +
+    'Work on the item is reported "started" before it begins, and "finished" when it is done, with results: links to what the work produced, each with a short label, such as the revised draft. Work not done is a "note" saying what remains, not "finished". ' +
+    'Reading the item or answering questions about it is not work and is not reported. A request only for a plan gets the plan, and the work does not start. A request to start and then wait for a go-ahead is reported "started", then a "note" with waiting: true. A request not to report anything else is reported only as asked.')
+  // Context is stated as facts, with no instructions to the assistant.
+  assert.doesNotMatch(output.hookSpecificOutput.additionalContext, /\b(Load|Report|Give|you|your)\b/)
+  // A link only inside a fenced code block, such as a pasted diff or log, is quoted, not sent.
+  const fenced = ['Review this:\n```diff\n+' + SEND + '\n```\nLooks right?', '~~~\n' + LINK + '\n~~~', 'Log:\n```\n' + LINK]
+  for (const text of ['Fix the Safari login', 'see in-parallel:// for details', 'https://www.in-parallel.ai/acme/action-items/1', '', ...fenced]) {
     assert.equal(respond({ hook_event_name: 'UserPromptSubmit', prompt: text }), null, text)
   }
+  // A link outside the block, inline code included, is sent.
+  assert.ok(respond({ hook_event_name: 'UserPromptSubmit', prompt: '```\nnpm test\n```\nWork on `' + LINK + '`' }))
   // Only well-formed links are echoed back.
   const odd = respond({ hook_event_name: 'UserPromptSubmit', prompt: 'in-parallel://acme/action_item/1"><b>x</b> and in-parallel://acme/risk/2' })
   assert.match(odd.hookSpecificOutput.additionalContext, /link in-parallel:\/\/acme\/action_item\/1, in-parallel:\/\/acme\/risk\/2\./)
@@ -57,10 +63,10 @@ test('a pull request made while working on an item gets a results reminder', t =
   const sent = transcript(t, [SKILL_LISTING, prompt(SEND), report('started')])
   const output = shell(sent, 'gh pr create --fill', `${PR}\n`)
   assert.equal(output.hookSpecificOutput.hookEventName, 'PostToolUse')
-  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`pull request: ${PR}\\..*in results, with a short label`))
+  assert.match(output.hookSpecificOutput.additionalContext, new RegExp(`reported an In Parallel item started, and this command printed the pull request ${PR}\\. .*report_back's results, with a short label`))
   // A printed pull request URL counts too, and a create whose URL was not captured.
-  assert.match(shell(sent, 'gh pr view --json url --jq .url', `${PR}\n`).hookSpecificOutput.additionalContext, /in results/)
-  assert.match(shell(sent, 'gh pr create --fill', '').hookSpecificOutput.additionalContext, /You ran gh pr create\./)
+  assert.match(shell(sent, 'gh pr view --json url --jq .url', `${PR}\n`).hookSpecificOutput.additionalContext, /report_back's results/)
+  assert.match(shell(sent, 'gh pr create --fill', '').hookSpecificOutput.additionalContext, /gh pr create printed no pull request link\./)
   // Codex sends the command as an argument list and the output as text.
   const codex = respond({ hook_event_name: 'PostToolUse', transcript_path: sent, tool_name: 'Bash',
     tool_input: { command: ['bash', '-lc', 'gh pr create --fill'] }, tool_response: `Creating pull request\n${PR}\n` })
