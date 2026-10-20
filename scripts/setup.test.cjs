@@ -275,6 +275,24 @@ test('only the Development environment and localhost add experimental features, 
   }
 })
 
+// Codex loads a plugin with a root plugin.json in the agent-plugins format ahead of
+// .codex-plugin/plugin.json, and then runs none of its hooks
+// (codex-rs/core-plugins/src/loader.rs), so no install with hooks may carry one.
+test('no install that adds experimental features carries the root agent-plugins manifest', () => {
+  assert.match(JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'plugins', 'in-parallel', 'plugin.json'), 'utf8')).$schema, /agent-plugins/)
+  for (const agent of setup.AGENTS) {
+    for (const url of [DEVELOPMENT, 'http://localhost:54104/mcp']) {
+      const prefix = agent.id === 'cursor' ? '' : setup.PLUGIN_DIR
+      for (const files of [setup.pluginFiles(agent, url), setup.pluginFiles(agent, url, { hooks: false })]) {
+        assert.ok(files['skills/in-parallel-agent-work/SKILL.md'])
+        assert.ok(!Object.keys(files).some(name => path.basename(name) === 'plugin.json' && !name.startsWith('.')), `${agent.id} ${url}`)
+      }
+      const { files } = setup.bundle(agent, url)
+      assert.ok(!Object.keys(files).some(name => name === `${prefix}plugin.json`), `${agent.id} ${url}`)
+    }
+  }
+})
+
 test('doctor asks to rerun setup for work journal receipts and accepts the current feature set', t => {
   const home = fixture(t)
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')

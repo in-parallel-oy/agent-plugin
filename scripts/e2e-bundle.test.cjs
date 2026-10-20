@@ -32,6 +32,8 @@ for (const { agent, plugin, config, server } of [
     assert.equal(JSON.parse(read(dir, `.${agent}-plugin/plugin.json`)).hooks, undefined)
     assert.deepEqual(JSON.parse(read(dir, 'hooks/hooks.json')), JSON.parse(read(setup.SOURCE, `experimental/agent-work/hooks/${agent}.json`)))
     assert.ok(fs.existsSync(path.join(dir, 'scripts/reminders.js')))
+    // A root agent-plugins manifest would make Codex load the plugin without its hooks.
+    assert.equal(fs.existsSync(path.join(dir, 'plugin.json')), false)
     for (const skill of SKILLS) assert.ok(fs.existsSync(path.join(dir, 'skills', skill, 'SKILL.md')), skill)
     assert.deepEqual(JSON.parse(read(dir, config)).mcpServers.in_parallel, server)
     assert.equal(fs.existsSync(path.join(root, setup.RECEIPT)), false)
