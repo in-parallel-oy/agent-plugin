@@ -213,6 +213,24 @@ test('the hook reads only its input and the transcript, loads only fs, and never
   }
 })
 
+// Claude Code runs an exec form hook with no shell: it substitutes CLAUDE_PLUGIN_ROOT
+// into each argument as a plain string, so a root with spaces or quotes needs no quoting.
+test('the Claude Code hooks run node on the script by its path, with no shell', t => {
+  const plugin = path.join(tmp(t, 'in-parallel-claude-plugin'), "Max's plugins $HOME")
+  fs.mkdirSync(path.join(plugin, 'scripts'), { recursive: true })
+  fs.copyFileSync(SCRIPT, path.join(plugin, 'scripts', 'reminders.js'))
+  const hooks = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'hooks', 'claude.json'), 'utf8')).hooks
+  const commands = ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'].flatMap(event => hooks[event].flatMap(group => group.hooks))
+  assert.equal(commands.length, 3)
+  for (const hook of commands) {
+    assert.equal(hook.command, 'node')
+    const args = hook.args.map(arg => arg.replaceAll('${CLAUDE_PLUGIN_ROOT}', plugin))
+    const { status, stdout } = spawnSync(process.execPath, args, { input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: SEND }), encoding: 'utf8' })
+    assert.equal(status, 0)
+    assert.match(JSON.parse(stdout).hookSpecificOutput.additionalContext, new RegExp(LINK))
+  }
+})
+
 // Codex expands no variables in a hook command: it runs the command with the
 // session's shell (sh, bash or zsh with -c on macOS and Linux) and sets PLUGIN_ROOT
 // and CLAUDE_PLUGIN_ROOT in its environment (codex-rs hooks/src/engine/discovery.rs),

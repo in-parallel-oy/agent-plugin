@@ -257,7 +257,11 @@ test('only the Development environment and localhost add experimental features, 
         assert.deepEqual(hooks.PostToolUse.flatMap(group => group.hooks).map(hook => hook.if), ['Bash(gh pr *)'])
       }
       for (const event of agent.id === 'claude' ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'] : ['UserPromptSubmit', 'PostToolUse']) {
-        for (const hook of hooks[event].flatMap(group => group.hooks)) assert.equal(hook.command, `node "${root}/scripts/reminders.js"`)
+        // Claude Code runs exec form, with no shell to quote the path for; Codex has only shell form.
+        for (const hook of hooks[event].flatMap(group => group.hooks)) {
+          assert.deepEqual([hook.command, hook.args], agent.id === 'claude'
+            ? ['node', [`${root}/scripts/reminders.js`]] : [`node "${root}/scripts/reminders.js"`, undefined])
+        }
       }
       // The stop reminder asks In Parallel through the client's own connection, passing stop_hook_active
       // and, from Claude Code, the conversation's session id.
