@@ -12,23 +12,18 @@ const source = path.resolve(__dirname, '..')
 const plugin = path.join(source, 'plugins', 'in-parallel')
 
 for (const client of ['claude', 'codex', 'chatgpt-desktop']) {
-  test(`${client}: export has literal MCP endpoints, and the agent work skills and reminders only for Development`, () => {
+  test(`${client}: export has literal MCP endpoints and the same files for Development`, () => {
+    const names = url => Object.keys(packageFiles(client, { url })).sort()
+    assert.deepEqual(names(DEVELOPMENT), names('https://demo.example/mcp'))
     for (const url of ['https://demo.example/mcp', DEVELOPMENT]) {
       const files = packageFiles(client, { url })
       const kind = client === 'claude' ? 'claude' : 'codex'
-      const dev = url === DEVELOPMENT
-      // ChatGPT runs no plugin hooks, so its packages never carry them.
-      const hooks = dev && client !== 'chatgpt-desktop'
-      // Hooks load from the default hooks/hooks.json, never through the manifest.
       assert.equal(JSON.parse(files[`.${kind}-plugin/plugin.json`]).hooks, undefined)
-      assert.equal(Boolean(files['skills/in-parallel-agent-work/SKILL.md']), dev)
-      assert.equal(Boolean(files['skills/work-on/SKILL.md']), dev)
-      assert.deepEqual(files['hooks/hooks.json'], hooks ? fs.readFileSync(path.join(source, 'experimental', 'agent-work', 'hooks', `${kind}.json`)) : undefined)
-      assert.equal(Boolean(files['scripts/reminders.js']), hooks)
+      assert.ok(files['skills/in-parallel/SKILL.md'])
       assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(plugin, 'LICENSE')))
       assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(plugin, 'NOTICE')))
       for (const name of ['.mcp.json', 'mcp.json']) assert.equal(JSON.parse(files[name]).mcpServers.in_parallel.url, url)
-      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|hooks\/hooks\.json$|scripts\/reminders\.js$|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
+      assert.ok(Object.keys(files).every(name => /^(skills\/|assets\/|\.(claude|codex)-plugin\/plugin.json$|\.?mcp.json$|LICENSE$|NOTICE$)/.test(name)))
       assert.equal(files['plugin.json'], undefined)
     }
   })
@@ -40,7 +35,7 @@ for (const client of ['claude', 'codex']) {
     const manifest = JSON.parse(files[`.${client}-plugin/plugin.json`])
     assert.equal(manifest.hooks, undefined)
     assert.ok(files['skills/in-parallel/SKILL.md'])
-    assert.ok(!Object.keys(files).some(name => /^(hooks|scripts)\/|in-parallel-agent-work/.test(name)))
+    assert.ok(!Object.keys(files).some(name => /^(hooks|scripts)\//.test(name)))
   })
 }
 
@@ -55,7 +50,6 @@ test('ChatGPT web packages skills, listing fields and icon, with no app referenc
     assert.equal(manifest.hooks, undefined)
     assert.equal(manifest.mcpServers, undefined)
     assert.ok(files['skills/in-parallel/SKILL.md'])
-    assert.equal(files['skills/in-parallel-agent-work/SKILL.md'], undefined)
     assert.deepEqual(files['assets/logo.png'], fs.readFileSync(path.join(plugin, 'assets/logo.png')))
     assert.deepEqual(files.LICENSE, fs.readFileSync(path.join(plugin, 'LICENSE')))
     assert.deepEqual(files.NOTICE, fs.readFileSync(path.join(plugin, 'NOTICE')))

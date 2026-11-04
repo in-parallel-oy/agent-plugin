@@ -22,7 +22,7 @@ for (const { agent, plugin, config, server } of [
   { agent: 'claude', plugin: '', config: '.mcp.json', server: { type: 'http', url: ENDPOINT, headers: { Authorization: 'Bearer ${E2E_TEST_TOKEN}' } } },
   { agent: 'codex', plugin: 'plugins/in-parallel', config: 'mcp.json', server: { type: 'streamable-http', url: ENDPOINT, bearer_token_env_var: 'E2E_TEST_TOKEN' } },
 ]) {
-  test(`${agent}: the plugin has the hooks, skills and endpoint, and only the token variable name`, t => {
+  test(`${agent}: the plugin has the skills and endpoint, and only the token variable name`, t => {
     const root = out(t)
     const logs = []
     process.env.E2E_TEST_TOKEN = SECRET
@@ -30,9 +30,7 @@ for (const { agent, plugin, config, server } of [
     main(['--agent', agent, '--url', ENDPOINT, '--out', root, '--token-env', 'E2E_TEST_TOKEN'], line => logs.push(line))
     const dir = path.join(root, plugin)
     assert.equal(JSON.parse(read(dir, `.${agent}-plugin/plugin.json`)).hooks, undefined)
-    assert.deepEqual(JSON.parse(read(dir, 'hooks/hooks.json')), JSON.parse(read(setup.SOURCE, `experimental/agent-work/hooks/${agent}.json`)))
-    assert.ok(fs.existsSync(path.join(dir, 'scripts/reminders.js')))
-    // A root agent-plugins manifest would make Codex load the plugin without its hooks.
+    // Codex would load a root agent-plugins manifest ahead of .codex-plugin/plugin.json.
     assert.equal(fs.existsSync(path.join(dir, 'plugin.json')), false)
     for (const skill of SKILLS) assert.ok(fs.existsSync(path.join(dir, 'skills', skill, 'SKILL.md')), skill)
     assert.deepEqual(JSON.parse(read(dir, config)).mcpServers.in_parallel, server)
@@ -78,8 +76,7 @@ test('non-loopback URLs, bad variable names, other agents and foreign directorie
   assert.ok(fs.existsSync(path.join(own, '.agents/plugins/marketplace.json')))
 })
 
-test('setup still adds experimental features for the Development host and localhost only, and the tool is not shipped', () => {
-  for (const agent of setup.AGENTS) assert.deepEqual(setup.bundle(agent, 'https://in-parallel.example/mcp').receipt.experimental, [])
+test('the tool is not shipped', () => {
   const [{ files }] = JSON.parse(
     execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: setup.SOURCE, encoding: 'utf8' })
   )

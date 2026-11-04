@@ -2,8 +2,7 @@
 'use strict'
 
 // Developer tool, not shipped: writes the plugin for a local In Parallel server, for
-// end-to-end runs. A loopback endpoint gets the experimental features from setup's
-// own rule. Claude Code loads the output with --plugin-dir; Codex installs it from
+// end-to-end runs. Claude Code loads the output with --plugin-dir; Codex installs it from
 // the output as a local marketplace.
 
 const fs = require('node:fs')
@@ -67,7 +66,7 @@ function main(args = process.argv.slice(2), log = console.log) {
   const token = options.tokenEnv ? ` Export ${options.tokenEnv} first.` : ''
   log(options.agent === 'claude'
     ? `Wrote ${out}\nRun: claude --plugin-dir ${out}${token}`
-    : `Wrote ${out}\nRun: codex plugin marketplace add ${out} && codex plugin add in-parallel@${MARKETPLACE}, then trust the hooks in /hooks.${token}`)
+    : `Wrote ${out}\nRun: codex plugin marketplace add ${out} && codex plugin add in-parallel@${MARKETPLACE}.${token}`)
 }
 
 if (require.main === module) {

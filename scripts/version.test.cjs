@@ -1,7 +1,7 @@
 'use strict'
 
 // Clients cache a plugin by its version, so a content change shipped without a
-// version bump reaches no one, and Codex keeps trusting the old hooks. The last
+// version bump reaches no one. The last
 // recorded content digest is committed with the version it shipped as.
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
@@ -13,9 +13,8 @@ const { execFileSync } = require('node:child_process')
 const source = path.resolve(__dirname, '..')
 const RECORD = path.join(__dirname, 'plugin-content.json')
 // Everything a store client installs is what the package ships, less the setup
-// tool (scripts/*.js), the README and the experimental features, which setup
-// installs from this checkout and never reach the store.
-const CONTENT = require('../package.json').files.filter(entry => !entry.startsWith('scripts/') && !entry.startsWith('!') && entry !== 'README.md' && entry !== 'experimental')
+// tool (scripts/*.js) and the README, which never reach the store.
+const CONTENT = require('../package.json').files.filter(entry => !entry.startsWith('scripts/') && !entry.startsWith('!') && entry !== 'README.md')
 
 // Tracked and new files only: git-ignored noise such as .DS_Store is not content.
 function files() {

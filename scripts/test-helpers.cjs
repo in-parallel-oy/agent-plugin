@@ -4,8 +4,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 
-// The skills a Development bundle ships.
-const SKILLS = ['in-parallel', 'in-parallel-agent-work', 'work-on']
+// The skills a bundle ships.
+const SKILLS = ['in-parallel']
 
 // A fresh temporary folder, removed when the test ends.
 function tmp(t, prefix) {

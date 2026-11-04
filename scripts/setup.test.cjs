@@ -7,7 +7,6 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const setup = require('./setup-lib')
 const { SKILLS, tmp } = require('./test-helpers.cjs')
-const { TAGGED } = require(path.resolve(__dirname, '..', 'experimental', 'agent-work', 'scripts', 'reminders.js'))
 const { PRODUCTION, DEVELOPMENT } = setup
 
 // Everything the retired work journal hooks left in ~/.in-parallel, plus a file setup must keep.
@@ -211,161 +210,81 @@ test('setup installs the plugin as a client loads it, beside the setup marketpla
     const market = { claude: ['.claude-plugin/marketplace.json'], codex: ['.agents/plugins/marketplace.json'], cursor: [] }[agent.id]
     assert.deepEqual(Object.keys(files).filter(name => !name.startsWith(prefix) || !(name.slice(prefix.length) in plugin)), market)
     assert.equal(JSON.parse(plugin[`.${agent.id}-plugin/plugin.json`]).version, receipt.version)
-    // A client that runs no hooks gets the plugin without them.
-    const unhooked = setup.pluginFiles(agent, url, { hooks: false })
-    assert.ok(!Object.keys(unhooked).some(name => /^(hooks|scripts)\//.test(name)))
-    assert.equal(JSON.parse(unhooked[`.${agent.id}-plugin/plugin.json`]).hooks, undefined)
-    assert.ok(unhooked['skills/in-parallel-agent-work/SKILL.md'])
   }
 })
 
-test('only the Development environment and localhost add experimental features, and reminder hooks only for Claude Code and Codex', () => {
+test('Development and production bundles differ only in the endpoint', () => {
+  const endpointFiles = ['.mcp.json', 'mcp.json']
   for (const agent of setup.AGENTS) {
-    const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
-    for (const url of [PRODUCTION, 'https://in-parallel.example/mcp',
-      'https://staging.in-parallel.dev/mcp', 'https://www.in-parallel.dev.example.com/mcp']) {
-      const stable = setup.bundle(agent, url)
-      assert.deepEqual(stable.receipt.experimental, [], url)
-      assert.ok(!Object.keys(stable.files).some(name => /in-parallel-agent-work|work-on|(^|\/)(hooks|scripts)\//.test(name)), url)
-      assert.equal(JSON.parse(stable.files[`${prefix}.${agent.id}-plugin/plugin.json`]).hooks, undefined)
-    }
-    for (const url of [DEVELOPMENT, 'https://in-parallel.dev/mcp', 'http://localhost:54104/mcp', 'http://127.0.0.1:5000/mcp']) {
-      const dev = setup.bundle(agent, url)
-      assert.deepEqual(dev.receipt.experimental, ['agent-work'])
-      for (const skill of SKILLS) assert.ok(dev.files[`${prefix}skills/${skill}/SKILL.md`], skill)
-      assert.ok(dev.files[`${prefix}skills/work-on/agents/openai.yaml`])
-      const manifest = JSON.parse(dev.files[`${prefix}.${agent.id}-plugin/plugin.json`])
-      const extra = Object.keys(dev.files).filter(name => /(^|\/)(hooks|scripts)\//.test(name)).sort()
-      if (agent.id === 'cursor') {
-        assert.equal(manifest.hooks, undefined)
-        assert.deepEqual(extra, [])
-        continue
-      }
-      // The default hooks path, which each client reads on its own; each gets only its own file.
-      assert.equal(manifest.hooks, undefined)
-      assert.deepEqual(extra, [`${prefix}hooks/hooks.json`, `${prefix}scripts/reminders.js`])
-      assert.deepEqual(dev.files[`${prefix}hooks/hooks.json`], fs.readFileSync(path.join(setup.SOURCE, 'experimental', 'agent-work', 'hooks', `${agent.id}.json`)))
-      const hooks = JSON.parse(dev.files[`${prefix}hooks/hooks.json`]).hooks
-      const root = agent.id === 'claude' ? '${CLAUDE_PLUGIN_ROOT}' : '${PLUGIN_ROOT}'
-      // Only the main agent's Stop is hooked: no SubagentStop and no SessionStart.
-      // Claude Code also tags report_back with its session id; Codex names its thread itself.
-      assert.deepEqual(Object.keys(hooks), agent.id === 'claude'
-        ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] : ['UserPromptSubmit', 'PostToolUse', 'Stop'])
-      if (agent.id === 'claude') {
-        assert.deepEqual(hooks.PreToolUse.map(group => group.matcher), [TAGGED.source])
-        // Node starts only for gh pr commands, the only ones checked for a pull request.
-        assert.deepEqual(hooks.PostToolUse.flatMap(group => group.hooks).map(hook => hook.if), ['Bash(gh pr *)'])
-      }
-      for (const event of agent.id === 'claude' ? ['UserPromptSubmit', 'PreToolUse', 'PostToolUse'] : ['UserPromptSubmit', 'PostToolUse']) {
-        // Claude Code runs exec form, with no shell to quote the path for; Codex has only shell form.
-        for (const hook of hooks[event].flatMap(group => group.hooks)) {
-          assert.deepEqual([hook.command, hook.args], agent.id === 'claude'
-            ? ['node', [`${root}/scripts/reminders.js`]] : [`node "${root}/scripts/reminders.js"`, undefined])
-        }
-      }
-      // The stop reminder asks In Parallel through the client's own connection, passing stop_hook_active
-      // and, from Claude Code, the conversation's session id.
-      assert.deepEqual(hooks.Stop.flatMap(group => group.hooks), [{
-        type: 'mcp_tool', server: agent.id === 'claude' ? 'plugin:in-parallel:in_parallel' : 'in_parallel',
-        tool: 'report_back_reminder', timeout: 10,
-        input: agent.id === 'claude' ? { stop_hook_active: '${stop_hook_active}', client_session: '${session_id}' } : { stop_hook_active: '${stop_hook_active}' },
-      }])
-      assert.deepEqual(Object.keys(hooks.Stop[0]), ['hooks'])
-    }
-  }
-})
-
-// Codex loads a plugin with a root plugin.json in the agent-plugins format ahead of
-// .codex-plugin/plugin.json, and then runs none of its hooks
-// (codex-rs/core-plugins/src/loader.rs), so no install with hooks may carry one.
-test('no install that adds experimental features carries the root agent-plugins manifest', () => {
-  assert.match(JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'plugins', 'in-parallel', 'plugin.json'), 'utf8')).$schema, /agent-plugins/)
-  for (const agent of setup.AGENTS) {
+    const prefix = agent.id === 'cursor' ? '' : setup.PLUGIN_DIR
+    const manifest = `${prefix}.${agent.id}-plugin/plugin.json`
+    const stable = setup.bundle(agent, PRODUCTION)
+    for (const skill of SKILLS) assert.ok(stable.files[`${prefix}skills/${skill}/SKILL.md`], skill)
+    assert.ok(!Object.keys(stable.files).some(name => /(^|\/)(hooks|scripts)\//.test(name)))
     for (const url of [DEVELOPMENT, 'http://localhost:54104/mcp']) {
-      const prefix = agent.id === 'cursor' ? '' : setup.PLUGIN_DIR
-      for (const files of [setup.pluginFiles(agent, url), setup.pluginFiles(agent, url, { hooks: false })]) {
-        assert.ok(files['skills/in-parallel-agent-work/SKILL.md'])
-        assert.ok(!Object.keys(files).some(name => path.basename(name) === 'plugin.json' && !name.startsWith('.')), `${agent.id} ${url}`)
+      const dev = setup.bundle(agent, url)
+      assert.deepEqual(dev.receipt.experimental, [])
+      assert.deepEqual(Object.keys(dev.files), Object.keys(stable.files), url)
+      for (const name of endpointFiles) {
+        const config = JSON.parse(dev.files[`${prefix}${name}`])
+        assert.equal(config.mcpServers.in_parallel.url, url)
+        config.mcpServers.in_parallel.url = PRODUCTION
+        assert.deepEqual(config, JSON.parse(stable.files[`${prefix}${name}`]), name)
       }
-      const { files } = setup.bundle(agent, url)
-      assert.ok(!Object.keys(files).some(name => name === `${prefix}plugin.json`), `${agent.id} ${url}`)
+      // The manifest and marketplace differ only in the content digest on the version.
+      const unversioned = content => String(content).replace(/\+setup\.[0-9a-f]+/g, '')
+      for (const name of Object.keys(dev.files).filter(name => !endpointFiles.includes(name.slice(prefix.length)))) {
+        assert.equal(unversioned(dev.files[name]), unversioned(stable.files[name]), name)
+      }
+      assert.equal(JSON.parse(dev.files[manifest]).hooks, undefined)
     }
   }
 })
 
-test('doctor asks to rerun setup for work journal receipts and accepts the current feature set', t => {
+test('doctor asks to rerun setup for work journal and experimental feature receipts', t => {
   const home = fixture(t)
   const agent = setup.AGENTS.find(agent => agent.id === 'cursor')
   const logs = []
   const options = { home, cwd: home, env: {}, log: message => logs.push(message) }
   const file = path.join(setup.target(agent, home), setup.RECEIPT)
-  for (const url of [DEVELOPMENT, 'http://localhost:54104/mcp', 'https://in-parallel.example/mcp']) {
+  for (const url of [DEVELOPMENT, 'http://localhost:54104/mcp', PRODUCTION]) {
     setup.install(agent, url, options)
     const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
-    for (const experimental of [['work-claims'], undefined]) {
-      fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental }))
-      // The caller prefixes the client name; the message does not repeat it.
-      assert.throws(() => setup.doctor(agent, options), error => /^Installed with the retired work journal\. Run setup again/.test(error.message))
-    }
+    assert.deepEqual(receipt.experimental, [])
+    // The caller prefixes the client name; the message does not repeat it.
+    fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental: undefined }))
+    assert.throws(() => setup.doctor(agent, options), error => /^Installed with the retired work journal\. Run setup again to update\.$/.test(error.message))
+    // Development installs from before agent work was retired list it.
+    fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental: ['agent-work'] }))
+    assert.throws(() => setup.doctor(agent, options), error => /^Installed with retired experimental features\. Run setup again to update\.$/.test(error.message))
     setup.install(agent, url, options)
     logs.length = 0
     setup.doctor(agent, options)
-    const dev = !url.includes('.example')
-    assert.equal(/Experimental: agent-work/.test(logs.join('\n')), dev)
+    assert.ok(!/Experimental|hooks/.test(logs.join('\n')))
   }
-  setup.install(agent, PRODUCTION, options)
-  const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
-  fs.writeFileSync(file, JSON.stringify({ ...receipt, experimental: ['agent-work'] }))
-  assert.throws(() => setup.doctor(agent, options), (error) => error.message.includes(`experimental features that ${PRODUCTION} no longer gets`))
 })
 
 for (const agent of setup.AGENTS) {
-  test(`${agent.name}: Development install adds the work-on command and reminders; doctor reports the feature; uninstall removes them`, t => {
+  test(`${agent.name}: doctor asks to rerun setup for a copy missing a newer skill file; uninstall removes it`, t => {
     const home = fixture(t)
     const native = host(agent, home)
-    const logs = []
-    const options = { home, cwd: home, env: {}, execute: native.execute, log: line => logs.push(line) }
-    const url = DEVELOPMENT
-    setup.install(agent, url, options)
+    const options = { home, cwd: home, env: {}, execute: native.execute, log() {} }
+    setup.install(agent, PRODUCTION, options)
     const root = setup.target(agent, home)
     const plugin = agent.id === 'cursor' ? root : path.join(root, 'plugins', 'in-parallel')
-    const hooks = agent.id !== 'cursor'
     for (const skill of SKILLS) assert.ok(fs.existsSync(path.join(plugin, 'skills', skill, 'SKILL.md')), skill)
-    assert.equal(fs.existsSync(path.join(plugin, 'scripts', 'reminders.js')), hooks)
-    assert.equal(fs.existsSync(path.join(plugin, 'hooks', 'hooks.json')), hooks)
-    if (hooks) {
-      const installed = JSON.parse(fs.readFileSync(path.join(plugin, 'hooks', 'hooks.json'), 'utf8')).hooks
-      assert.deepEqual(installed, JSON.parse(fs.readFileSync(path.join(setup.SOURCE, 'experimental', 'agent-work', 'hooks', `${agent.id}.json`), 'utf8')).hooks)
-      assert.deepEqual(installed.Stop.flatMap(group => group.hooks).map(hook => [hook.type, hook.tool]), [['mcp_tool', 'report_back_reminder']])
-    }
-    assert.equal(/\/hooks/.test(logs.join('\n')), hooks)
-    logs.length = 0
     setup.doctor(agent, options)
-    const report = logs.join('\n')
-    assert.match(report, /Experimental: agent-work\n/)
-    assert.equal(/\/hooks/.test(report), hooks)
 
-    // A copy installed before the command and reminders existed needs setup again.
     const file = path.join(root, setup.RECEIPT)
-    const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
     const prefix = agent.id === 'cursor' ? '' : 'plugins/in-parallel/'
-    for (const name of Object.keys(receipt.files).filter(name => name.startsWith(`${prefix}skills/work-on/`) || /(^|\/)(hooks|scripts)\//.test(name))) {
-      fs.rmSync(path.join(root, name))
-      delete receipt.files[name]
-    }
-    fs.writeFileSync(file, JSON.stringify(receipt))
-    assert.throws(() => setup.doctor(agent, options), /Installed with outdated files\. Run setup again/)
-    setup.install(agent, url, options)
-    setup.doctor(agent, options)
-
-    // A production copy missing a newer base skill file needs setup again too, without naming experimental features.
-    setup.install(agent, PRODUCTION, options)
     const base = JSON.parse(fs.readFileSync(file, 'utf8'))
     const skill = Object.keys(base.files).find(name => name.startsWith(`${prefix}skills/in-parallel/`))
     fs.rmSync(path.join(root, skill))
     delete base.files[skill]
     fs.writeFileSync(file, JSON.stringify(base))
-    assert.throws(() => setup.doctor(agent, options), error => /Installed with outdated files\./.test(error.message) && !/experimental/.test(error.message))
+    assert.throws(() => setup.doctor(agent, options), error => /^Installed with outdated files\. Run setup again to update\.$/.test(error.message))
+    setup.install(agent, PRODUCTION, options)
+    setup.doctor(agent, options)
 
     setup.uninstall(agent, options)
     assert.equal(fs.existsSync(root), false)
