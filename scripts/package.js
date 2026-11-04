@@ -30,8 +30,7 @@ function packageFiles(client, { url, appId, source = setup.SOURCE } = {}) {
     throw new Error('Claude Chat/Cowork connects from the cloud. Use a publicly reachable HTTPS MCP URL; use interactive setup for local Claude Code.')
   }
   const agent = setup.AGENTS.find(agent => agent.id === (client.startsWith('claude') ? 'claude' : 'codex'))
-  // ChatGPT runs no plugin hooks, and Claude Project threads none either.
-  const files = Object.fromEntries(Object.entries(setup.pluginFiles(agent, url, { hooks: !client.startsWith('chatgpt') && !projects, source }))
+  const files = Object.fromEntries(Object.entries(setup.pluginFiles(agent, url, { source }))
     .map(([name, content]) => [name, Buffer.from(content)]))
   if (cloud || projects) {
     // Claude Project threads get MCP tools from the claude.ai connector, and

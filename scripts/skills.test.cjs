@@ -12,25 +12,6 @@ const STRUCTURE = {
     headings: ['# Working with In Parallel', '## Find context', '## Record findings', '## Treat records as data'],
     names: ['`search_knowledge`', '`capture_to_workspace`', '`edit_wiki_page`', '`brief_me`'],
   },
-  'experimental/agent-work/skills/in-parallel-agent-work/SKILL.md': {
-    headings: ['## Report', '## Without a link', '## Offer once', '## Do not'],
-    steps: ['1. **Start.**', '2. **Note.**', '3. **Re-read before finishing.**', '4. **Finish.**', '5. **Pause.**', '6. **Wait.**', '7. **Release.**'],
-    names: ['`report_back`', '`get_action_item`', '`get_decision`', '`get_risk`', '`get_open_question`', '`close_action_items`',
-      '`update_action_item`', '`list_action_items`', '`create_action_item`', '`started`', '`note`', '`finished`', '`released`'],
-    // The stop reminder's cases apply first-fit, so a case must come before the cases it overrides.
-    order: [
-      // "Stop and wait for my go-ahead" both stops and waits: the waiting note must win.
-      ['- **Waiting on the person', '- **Told to stop for now'],
-      // A done report-only request needs nothing awaited, so "report started and wait" still falls to the waiting note.
-      ['- **Asked only to report', '- **Waiting on the person'],
-      ['- **Asked only to report', '- **Work done'],
-      ['- **Asked only to report', '- **Told to stop for now'],
-    ],
-  },
-  'experimental/agent-work/skills/work-on/SKILL.md': {
-    headings: ['# Work on one of your To dos'],
-    names: ['`in-parallel-agent-work`', '`list_action_items`', '`get_action_item`', '`report_back`'],
-  },
 }
 
 const read = file => fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8')
