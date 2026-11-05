@@ -64,7 +64,8 @@ test('ChatGPT web packages skills, listing fields and icon, with no app referenc
     assert.equal(manifest.version, JSON.parse(fs.readFileSync(path.join(source, 'package.json'))).version)
   }
   assert.deepEqual(Object.keys(packageFiles('chatgpt-web', { appId: 'asdk_app_6a587f19df988191a2256145fe65bb16' })).sort(),
-    ['.codex-plugin/plugin.json', 'LICENSE', 'NOTICE', 'assets/logo.png', 'skills/in-parallel/SKILL.md'])
+    ['.codex-plugin/plugin.json', 'LICENSE', 'NOTICE', 'assets/logo.png', 'skills/in-parallel/SKILL.md',
+      'skills/in-parallel/agents/openai.yaml', 'skills/in-parallel/assets/icon.svg', 'skills/in-parallel/assets/logo.png'])
 })
 
 test('Claude Projects packages skills and the Claude manifest, with no MCP server, hooks or scripts', () => {
