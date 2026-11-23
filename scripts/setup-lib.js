@@ -208,8 +208,16 @@ function pluginFiles(agent, url, { hooks = true, source = SOURCE } = {}) {
     for (const [name, content] of Object.entries(tree(path.join(root, 'scripts')))) files[`scripts/${name}`] = content
   }
   for (const name of ['LICENSE', 'NOTICE']) files[name] = fs.readFileSync(path.join(plugin(source), name))
-  // The Codex manifest's interface icons point at ./assets/logo.png.
-  if (agent.id === 'codex') files['assets/logo.png'] = fs.readFileSync(path.join(plugin(source), 'assets', 'logo.png'))
+  // The Codex manifest's interface icons point at ./assets/logo.png. The skill's
+  // ChatGPT metadata and icons live outside plugins/in-parallel because the Claude
+  // directory refuses files outside its allowed list from unverified publishers.
+  if (agent.id === 'codex') {
+    const logo = fs.readFileSync(path.join(plugin(source), 'assets', 'logo.png'))
+    files['assets/logo.png'] = logo
+    files['skills/in-parallel/agents/openai.yaml'] = fs.readFileSync(path.join(source, 'openai', 'skills', 'in-parallel', 'agents', 'openai.yaml'))
+    files['skills/in-parallel/assets/icon.svg'] = fs.readFileSync(path.join(plugin(source), '.claude-plugin', 'icon.svg'))
+    files['skills/in-parallel/assets/logo.png'] = logo
+  }
   // Write the literal endpoint, including for Claude. Never alter the source checkout.
   for (const name of ['.mcp.json', 'mcp.json']) {
     const config = JSON.parse(fs.readFileSync(path.join(plugin(source), name), 'utf8'))
